@@ -74,12 +74,13 @@ router.delete('/oders/:id', OrderController.delete);
 
 // thêm sản phẩm vào giỏ hàng
 router.post('/cart/add', authenticateToken, requireLogin, CartController.addToCart);
+// Xóa toàn bộ giỏ hàng của người dùng
+router.delete('/cart/clear', authenticateToken, CartController.clearCart);
 // Lấy danh sách sản phẩm trong giỏ
 router.get('/cart', authenticateToken, CartController.getCart);
 // Xoá sản phẩm khỏi giỏ
 router.delete('/cart/:product_id', authenticateToken, CartController.removeFromCart);
 router.put('/cart/update/:product_id', authenticateToken, CartController.updateCart);
-
 /*
 router.post('/comments',CommentController.create);
 router.put('/comments/:id',CommentController.update);
