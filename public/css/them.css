@@ -1,0 +1,124 @@
+body {
+    font-family: Arial, sans-serif;
+    background-color: #ebf0f5;
+    margin: 0;
+    padding: 0;
+}
+
+.product-form {
+    max-width: 600px;
+    margin: 50px auto;
+    padding: 20px;
+    background-color: #ffffff;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+}
+
+.product-form label {
+    font-weight: bold;
+    margin-bottom: 5px;
+    display: inline-block;
+}
+
+.product-form input[type="text"],
+.product-form input[type="number"],
+.product-form textarea,
+.product-form input[type="file"] {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 15px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-size: 16px;
+}
+
+.product-form textarea {
+    resize: vertical;
+    min-height: 100px;
+}
+
+.product-form button {
+    background-color: #007bff;
+    color: white;
+    padding: 10px 20px;
+    font-size: 16px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.product-form button:hover {
+    background-color: #0056b3;
+}
+
+
+/* Style cho bảng */
+.table-primary {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 20px 0;
+    font-size: 18px;
+    text-align: left;
+    border: 1px solid #ddd;
+}
+
+.table-primary th, .table-primary td {
+    padding: 12px;
+    border: 1px solid #ddd;
+}
+
+.table-primary th {
+    background-color: #f4f4f4;
+    font-weight: bold;
+    color: #333;
+}
+
+.table-primary tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+
+/* Hiệu ứng rê chuột */
+.table-primary tr:hover {
+    background-color: #f1f1f1;
+    transition: background-color 0.3s ease-in-out;
+}
+
+/* Style cho liên kết "Sửa/Xóa" */
+/* Định dạng cơ bản cho nút */
+button {
+    background-color: transparent; /* Xóa màu nền mặc định */
+    border: none; /* Xóa viền mặc định */
+    padding: 5px 3px;
+    cursor: pointer;
+}
+
+/* Định dạng cho liên kết trong nút */
+button a {
+    text-decoration: none; /* Xóa gạch chân */
+    color: #fff; /* Màu chữ mặc định */
+    font-weight: bold;
+    padding: 5px 15px;
+    border-radius: 5px;
+    display: inline-block;
+}
+
+/* Nút "Sửa" */
+button a[href*="/edit"] {
+    background-color: #007bff; /* Màu xanh dương */
+}
+
+button a[href*="/edit"]:hover {
+    background-color: #0056b3; /* Đổi màu khi rê chuột */
+    transition: background-color 0.3s ease-in-out;
+}
+
+/* Nút "Xóa" */
+button a[href*="/delete"] {
+    background-color: #dc3545; /* Màu đỏ */
+}
+
+button a[href*="/delete"]:hover {
+    background-color: #a71d2a; /* Đổi màu khi rê chuột */
+    transition: background-color 0.3s ease-in-out;
+}
