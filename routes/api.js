@@ -10,6 +10,7 @@ const CartController = require('../controllers/api/client/cartController');
 const ClientCheckoutController = require('../controllers/api/client/checkoutController'); // Controller checkout mới
 const {authenticateToken, requireLogin} = require('../middleware/authMiddleware');
 const ClientOrderHistoryController = require('../controllers/api/client/orderHistoryController');
+const {createPaymentQr} = require('../controllers/api/client/vnpayController');
 
 
 /*const AuthController = require('../controllers/client/authController'); */
@@ -81,6 +82,11 @@ router.get('/cart', authenticateToken, CartController.getCart);
 // Xoá sản phẩm khỏi giỏ
 router.delete('/cart/:product_id', authenticateToken, CartController.removeFromCart);
 router.put('/cart/update/:product_id', authenticateToken, CartController.updateCart);
+
+
+// paymennt VNpay
+router.post('/create-qr', createPaymentQr);
+
 /*
 router.post('/comments',CommentController.create);
 router.put('/comments/:id',CommentController.update);

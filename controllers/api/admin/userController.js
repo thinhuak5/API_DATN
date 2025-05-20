@@ -26,7 +26,7 @@ class UserController {
             /*           console.log("Mật khẩu mã hóa thành công:", hashedPassword); */
 
             // Nếu không có avatar, sử dụng avatar mặc định
-            const avatarValue = avatar || 'default-avatar.jpg'; // Đặt ảnh mặc định
+            const avatarValue = req.file ? req.file.filename : "default-avatar.jpg";
 
             // Nếu status hoặc role không có, sử dụng giá trị mặc định
             const newUser = await User.create({
