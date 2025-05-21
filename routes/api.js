@@ -21,8 +21,11 @@ const {createPaymentQr} = require('../controllers/api/client/vnpayController');
 // Danh mục admin
 router.get('/categories/list', CategoryController.getAll);
 router.get('/categories/:id', CategoryController.detail);
-router.post('/categories/add', CategoryController.create); //Thêm sản danh mục có hình ảnh
-router.put('/categories/:id', CategoryController.update); //Cập nhật danh mục có hình ảnh
+
+
+router.post('/categories/add', upload.single('images'), CategoryController.create);
+router.put('/categories/:id', upload.single('images'), CategoryController.update);
+
 router.delete('/categories/:id', CategoryController.delete);
 // router.post('/categories',  CategoryController.create);  // Thêm danh mục không hình ảnh
 // router.put('/categories/:id',  CategoryController.update); // sửa danh mục không hình ảnh

@@ -10,6 +10,7 @@ const Category = database.define('categories',
         },
         name: Sequelize.STRING,
         status: Sequelize.TINYINT,
+        images: Sequelize.STRING
     },
     {
         timestamps: false,
