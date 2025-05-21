@@ -101,22 +101,47 @@ exports.removeFromCart = async (req, res) => {
     }
 };
 // DELETE /api/cart/clear - Xoá toàn bộ giỏ hàng của người dùng sau khi đặt hàng
-exports.clearCart = async (req, res) => {
+// controllers/CartController.js
+
+// New version: Clears only selected items
+exports.clearCart = async (req, res) => { // This will now be called by /cart/clear-selected
     try {
         const userId = req.user.id;
+        const { selectedProductIds } = req.body;
 
-        // Xoá toàn bộ các sản phẩm chưa đặt hàng (status = 0)
+        if (!selectedProductIds || !Array.isArray(selectedProductIds) || selectedProductIds.length === 0) {
+            return res.status(200).json({ message: 'Không có sản phẩm nào được chọn để xóa khỏi giỏ hàng.' });
+        }
+
         await Cart.destroy({
             where: {
                 user_id: userId,
+                product_id: selectedProductIds,
                 status: 0
             }
         });
 
+        return res.status(200).json({ message: 'Đã xóa các sản phẩm được chọn khỏi giỏ hàng sau khi đặt hàng thành công.' });
+    } catch (error) {
+        console.error("Lỗi khi xóa các sản phẩm được chọn khỏi giỏ hàng:", error);
+        return res.status(500).json({ message: 'Lỗi server khi xóa giỏ hàng', error: error.message });
+    }
+};
+
+// If you still need a function to clear EVERYTHING from the cart
+exports.clearAllCartItems = async (req, res) => { // Rename this from clearCart if it deletes everything
+    try {
+        const userId = req.user.id;
+        await Cart.destroy({
+            where: {
+                user_id: userId,
+                status: 0 // Assuming status 0 means "in cart"
+            }
+        });
         return res.status(200).json({ message: 'Đã xóa toàn bộ giỏ hàng sau khi đặt hàng' });
     } catch (error) {
         console.error("Lỗi khi xóa toàn bộ giỏ hàng:", error);
-        return res.status(500).json({ message: 'Lỗi server khi xóa giỏ hàng', error });
+        return res.status(500).json({ message: 'Lỗi server khi xóa giỏ hàng', error: error.message });
     }
 };
 
