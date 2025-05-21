@@ -16,6 +16,7 @@ const Order = database.define('orders',
         status: Sequelize.TINYINT,
         user_id: Sequelize.INTEGER,
         address: Sequelize.STRING,
+        cancellation_reason: Sequelize.STRING, // Lý do hủy đơn hàng
     },
     {
         timestamps: true,

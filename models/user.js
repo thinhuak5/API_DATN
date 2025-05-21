@@ -18,6 +18,7 @@ const User = database.define('users', {
     avatar: Sequelize.STRING,
     status: Sequelize.TINYINT,
     role: Sequelize.TINYINT,
+    address: Sequelize.STRING,
 }, {
     timestamps: false, // Không có createdAt và updatedAt
 });

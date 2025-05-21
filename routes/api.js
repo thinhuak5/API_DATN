@@ -53,7 +53,7 @@ router.get('/users/:id', UserController.detail);
 // Đăng ký user kèm avatar
 
 // Cập nhật thông tin user, hỗ trợ upload avatar nếu có
-router.put('/users/:id', UserController.update);
+router.put('/users/:id', upload.single('avatar'),  UserController.update);
 
 // Xóa user
 router.delete('/users/:id', UserController.delete);
@@ -72,6 +72,7 @@ router.get('/oders/:id', OrderController.detail);
 router.put('/oders/:id', OrderController.update);
 router.post('/oders', OrderController.create);
 router.delete('/oders/:id', OrderController.delete);
+
 
 // thêm sản phẩm vào giỏ hàng
 router.post('/cart/add', authenticateToken, requireLogin, CartController.addToCart);
@@ -115,5 +116,5 @@ router.patch('/users/:id', upload.single('avatar'), UserController.update);
 // Cần middleware authenticateToken để đảm bảo chỉ user đã đăng nhập mới checkout được
 router.post('/orders/checkout', authenticateToken, ClientCheckoutController.createOrder);
 router.get('/orders/history', authenticateToken, ClientOrderHistoryController.getOrderHistory);
-
+router.put('/orders/:id/cancel',authenticateToken, ClientOrderHistoryController.cancelOrder);
 module.exports = router;
