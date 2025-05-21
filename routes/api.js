@@ -78,6 +78,9 @@ router.delete('/oders/:id', OrderController.delete);
 router.post('/cart/add', authenticateToken, requireLogin, CartController.addToCart);
 // Xóa toàn bộ giỏ hàng của người dùng
 router.delete('/cart/clear', authenticateToken, CartController.clearCart);
+// routes/cartRoutes.js
+router.post('/cart/clear-selected', authenticateToken, CartController.clearCart); // Calls the new clearCart
+router.delete('/cart/clear-all', authenticateToken, CartController.clearAllCartItems); // Calls the clearAllCartItems
 // Lấy danh sách sản phẩm trong giỏ
 router.get('/cart', authenticateToken, CartController.getCart);
 // Xoá sản phẩm khỏi giỏ
