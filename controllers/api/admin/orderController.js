@@ -1,6 +1,5 @@
 const orderModel = require('../../../models/order');
-const orderItemModel = require('../../../models/OrderItem')
-const productModel = require('../../../models/product')
+
 exports.getAll = async (req, res) => {
     try {
         const data = await orderModel.findAll();
@@ -31,16 +30,13 @@ exports.create = async (req, res) => {
         res.status(500).json({ error: "Lỗi khi tạo đơn hàng" });
     }
 };
-
 exports.update = async (req, res) => {
     try {
-        const { payment_status, status } = req.body;
-        const orderId = req.params.id;
-
+        const {payment_status, status} = req.body;
 
         const [updated] = await orderModel.update(
-            { payment_status, status },
-            { where: { id: orderId } }
+            {payment_status, status},
+            {where: {id: req.params.id}}
         );
 
         if (updated === 0) {
@@ -77,11 +73,9 @@ exports.update = async (req, res) => {
             }
         }
 
-        res.status(200).json({ message: "Cập nhật đơn hàng thành công!" });
-
+        res.status(200).json({message: "Cập nhật đơn hàng thành công!"});
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: "Lỗi khi cập nhật đơn hàng" });
+        res.status(500).json({error: "Lỗi khi cập nhật đơn hàng"});
     }
 
 };
