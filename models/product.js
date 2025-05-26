@@ -19,7 +19,9 @@ const Product = database.define('products', {
         status: Sequelize.TINYINT,
         category_id: Sequelize.INTEGER,
         quantity: Sequelize.STRING,
-        minStock: Sequelize.STRING
+        minStock: Sequelize.STRING,
+        categoryparent_id: Sequelize.INTEGER
+
     },
     {
         timestamps: true
