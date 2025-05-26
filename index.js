@@ -8,6 +8,33 @@ const multer = require('multer');
 const fs = require('fs'); // Đảm bảo import fs để kiểm tra thư mục uploads
 const app = express();
 
+
+// Sequelize models
+const database = require('./models/database');
+const Category = require('./models/category');
+const CategoryParent = require('./models/categoryparent');
+const Product = require('./models/product');
+
+const models = {Category, CategoryParent, Product};
+
+// Gọi associate cho từng model nếu có
+Object.values(models).forEach(model => {
+    if (model.associate) {
+        model.associate(models);
+    }
+});
+
+// Sync database nếu cần
+// database.sync()
+//     .then(() => {
+//         console.log('Database đã đồng bộ!');
+//     })
+//     .catch((err) => {
+//         console.error('Lỗi khi sync database:', err);
+//     });
+
+
+
 app.use(session({
     secret: 'your_secret_key',
     resave: false,

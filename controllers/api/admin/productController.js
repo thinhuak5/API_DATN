@@ -20,8 +20,21 @@ exports.detail = async (req, res) => {
 
 exports.create = async (req, res) => {
     try {
-        const {name, description, price, discount_price, view, status, category_id, quantity, minStock} = req.body;
+        const {
+            name,
+            description,
+            price,
+            discount_price,
+            view,
+            status,
+            category_id,
+            quantity,
+            minStock,
+            categoryparent_id // ← Sử dụng đúng tên field
+        } = req.body;
+
         const image = req.file ? req.file.filename : null;
+
         const newProduct = await productModel.create({
             name,
             description,
@@ -32,10 +45,16 @@ exports.create = async (req, res) => {
             category_id,
             quantity,
             minStock,
+            categoryparent_id, // ← Gửi đúng tên vào DB
             images: image
         });
-        res.status(200).json({message: "Sản phẩm đã được thêm thành công!", product: newProduct});
+
+        res.status(200).json({
+            message: "Sản phẩm đã được thêm thành công!",
+            product: newProduct
+        });
     } catch (err) {
+        console.error("Lỗi tạo sản phẩm:", err);
         res.status(500).json({error: "Đã xảy ra lỗi khi thêm sản phẩm"});
     }
 };
@@ -43,20 +62,38 @@ exports.create = async (req, res) => {
 exports.update = async (req, res) => {
     try {
         const {
-            name, description, price, discount_price, view, status, category_id, old_image,
-            quantity, minStock
+            name,
+            description,
+            price,
+            discount_price,
+            view,
+            status,
+            category_id,
+            old_image,
+            quantity,
+            minStock,
+            categoryparent_id // ← Đúng tên biến
         } = req.body;
 
-        // Dùng ảnh mới nếu có, nếu không dùng ảnh cũ
         const images = req.file ? req.file.filename : old_image;
 
         const updatedProduct = await productModel.update(
             {
-                name, description, price, discount_price, view, status, category_id, images,
-                quantity,    // thêm quantity
-                minStock     // thêm minStock
+                name,
+                description,
+                price,
+                discount_price,
+                view,
+                status,
+                category_id,
+                images,
+                quantity,
+                minStock,
+                categoryparent_id // ← Cập nhật đúng field
             },
-            {where: {id: req.params.id}}
+            {
+                where: {id: req.params.id}
+            }
         );
 
         if (updatedProduct[0] === 0) {
@@ -70,10 +107,11 @@ exports.update = async (req, res) => {
     }
 };
 
-
 exports.delete = async (req, res) => {
     try {
-        const product = await productModel.destroy({where: {id: req.params.id}});
+        const product = await productModel.destroy({
+            where: {id: req.params.id}
+        });
         res.json(product);
     } catch (error) {
         res.status(500).json({error: "Lỗi server"});
