@@ -11,6 +11,7 @@ const ClientCheckoutController = require('../controllers/api/client/checkoutCont
 const {authenticateToken, requireLogin} = require('../middleware/authMiddleware');
 const ClientOrderHistoryController = require('../controllers/api/client/orderHistoryController');
 const {createPaymentQr} = require('../controllers/api/client/vnpayController');
+const categoryParentController = require('../controllers/api/admin/categoryparentController');
 
 
 /*const AuthController = require('../controllers/client/authController'); */
@@ -20,10 +21,19 @@ const {createPaymentQr} = require('../controllers/api/client/vnpayController');
 
 // Danh mục admin
 router.get('/categories/list', CategoryController.getAll);
+router.get('/categories/by-parent/:categoryparent_id', CategoryController.getByParent);
 router.get('/categories/:id', CategoryController.detail);
-router.post('/categories/add', CategoryController.create); //Thêm sản danh mục có hình ảnh
-router.put('/categories/:id', CategoryController.update); //Cập nhật danh mục có hình ảnh
+router.post('/categories/add', upload.single('images'),CategoryController.create); //Thêm sản danh mục có hình ảnh
+router.put('/categories/:id', upload.single('images'),CategoryController.update); //Cập nhật danh mục có hình ảnh
 router.delete('/categories/:id', CategoryController.delete);
+
+
+router.get('/categoryparents', categoryParentController.getAll);
+router.get('/categoryparents/:id', categoryParentController.detail);
+router.post('/categoryparents/add', upload.single('image'), categoryParentController.create);
+router.put('/categoryparents/:id', upload.single('image'), categoryParentController.update);
+router.delete('/categoryparents/:id', categoryParentController.delete);
+
 // router.post('/categories',  CategoryController.create);  // Thêm danh mục không hình ảnh
 // router.put('/categories/:id',  CategoryController.update); // sửa danh mục không hình ảnh
 // router.patch('/categories/:id',  CategoryController.update);
