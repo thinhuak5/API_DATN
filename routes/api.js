@@ -12,6 +12,7 @@ const {authenticateToken, requireLogin} = require('../middleware/authMiddleware'
 const ClientOrderHistoryController = require('../controllers/api/client/orderHistoryController');
 const {createPaymentQr, checkoutVNpay} = require('../controllers/api/client/vnpayController');
 const paymentController = require('../controllers/api/client/paymentController');
+const categoryParentController = require('../controllers/api/admin/categoryparentController');
 
 
 /*const AuthController = require('../controllers/client/authController'); */
