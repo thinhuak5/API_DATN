@@ -10,7 +10,8 @@ const CartController = require('../controllers/api/client/cartController');
 const ClientCheckoutController = require('../controllers/api/client/checkoutController'); // Controller checkout mới
 const {authenticateToken, requireLogin} = require('../middleware/authMiddleware');
 const ClientOrderHistoryController = require('../controllers/api/client/orderHistoryController');
-const {createPaymentQr} = require('../controllers/api/client/vnpayController');
+const {createPaymentQr, checkoutVNpay} = require('../controllers/api/client/vnpayController');
+const paymentController = require('../controllers/api/client/paymentController');
 
 
 /*const AuthController = require('../controllers/client/authController'); */
@@ -67,6 +68,11 @@ router.put('/users/:id', upload.single('avatar'),  UserController.update);
 // Xóa user
 router.delete('/users/:id', UserController.delete);
 
+// Payment
+router.post('/payments', paymentController.createPayment);
+router.put('/payments/status', paymentController.updatePaymentStatus);
+router.get('/payments/:payment_id', paymentController.getPaymentById);
+
 
 // // bình luận 
 router.get('/comments', CommentController.getAll);
@@ -99,6 +105,7 @@ router.put('/cart/update/:product_id', authenticateToken, CartController.updateC
 
 // paymennt VNpay
 router.post('/create-qr', createPaymentQr);
+router.get('/check-payment-vnpay', checkoutVNpay);
 
 /*
 router.post('/comments',CommentController.create);
