@@ -1,7 +1,7 @@
 const User = require("../../../models/user");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-
+const { OAuth2Client } = require("google-auth-library");
 class UserController {
   // Đăng ký người dùng
   static async register(req, res) {
@@ -171,6 +171,57 @@ class UserController {
       res.status(500).json({ err: "Lỗi server" });
     }
   }
+static async loginGoogle(req, res) {
+  try {
+    const { tokenGoogle } = req.body;
+
+    if (!tokenGoogle || typeof tokenGoogle !== "string") {
+      return res.status(400).json({ message: "Token không hợp lệ" });
+    }
+
+    const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+    const ticket = await client.verifyIdToken({
+      idToken: tokenGoogle,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    const dataUser = ticket.getPayload();
+    if (!dataUser || !dataUser.email) {
+      return res.status(400).json({ message: "Token không chứa thông tin email" });
+    }
+    let user = await User.findOne({ where: { email: dataUser.email } });
+    if (!user) {
+      user = await User.create({
+        username: dataUser.email.split('@')[0],
+        name: dataUser.name || "Người dùng Google",
+        email: dataUser.email,
+        password: "google_auth",
+       
+        avatar: dataUser.picture || "default-avatar.jpg",
+        status: 1,
+        role: 2,
+      });
+    }
+    // Thêm trường picture vào token để frontend lấy avatar
+    const token = jwt.sign({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      picture: user.avatar, // Thêm dòng này
+    }, process.env.JWT_SECRET || "thinh", { expiresIn: "1h" });
+
+    return res.status(200).json({
+      message: "Đăng nhập Google thành công!",
+      user,
+      token,
+    });
+
+  } catch (error) {
+    console.error("Lỗi đăng nhập Google:", error);
+    return res.status(500).json({ message: "Lỗi máy chủ", error: error.message });
+  }
+}
 }
 
 module.exports = UserController;
