@@ -11,8 +11,9 @@ const ClientCheckoutController = require('../controllers/api/client/checkoutCont
 const {authenticateToken, requireLogin} = require('../middleware/authMiddleware');
 const ClientOrderHistoryController = require('../controllers/api/client/orderHistoryController');
 const {createPaymentQr, checkoutVNpay} = require('../controllers/api/client/vnpayController');
-const paymentController = require('../controllers/api/client/paymentController');
 const categoryParentController = require('../controllers/api/admin/categoryparentController');
+const momoController = require('../controllers/api/client/momoController');
+
 
 
 /*const AuthController = require('../controllers/client/authController'); */
@@ -69,10 +70,7 @@ router.put('/users/:id', upload.single('avatar'),  UserController.update);
 // Xóa user
 router.delete('/users/:id', UserController.delete);
 
-// Payment
-router.post('/payments', paymentController.createPayment);
-router.put('/payments/status', paymentController.updatePaymentStatus);
-router.get('/payments/:payment_id', paymentController.getPaymentById);
+
 
 
 // // bình luận 
@@ -107,6 +105,10 @@ router.put('/cart/update/:product_id', authenticateToken, CartController.updateC
 // paymennt VNpay
 router.post('/create-qr', createPaymentQr);
 router.get('/check-payment-vnpay', checkoutVNpay);
+
+
+// payment MoMo
+router.post('/payments/momo', authenticateToken, momoController.createMomoPayment);
 
 /*
 router.post('/comments',CommentController.create);
