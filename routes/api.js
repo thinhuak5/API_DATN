@@ -51,6 +51,7 @@ router.delete('/products/:id', ProductController.delete);
 // router.post('/register', UserController.register);
 router.post('/register', upload.single('avatar'), UserController.register);
 router.post('/login', UserController.login);
+router.post('/login-google', UserController.loginGoogle);
 
 // Sản Phẩm Admin
 // router.post('/register', UserController.register);
