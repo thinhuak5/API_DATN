@@ -140,4 +140,9 @@ router.patch('/users/:id', upload.single('avatar'), UserController.update);
 router.post('/orders/checkout', authenticateToken, ClientCheckoutController.createOrder);
 router.get('/orders/history', authenticateToken, ClientOrderHistoryController.getOrderHistory);
 router.put('/orders/:id/cancel',authenticateToken, ClientOrderHistoryController.cancelOrder);
+
+// quên mật khẩu
+router.post('/forgot-password', UserController.forgotPassword);
+router.post('/reset-password', UserController.resetPassword);
+
 module.exports = router;

@@ -19,6 +19,14 @@ const User = database.define('users', {
     status: Sequelize.TINYINT,
     role: Sequelize.TINYINT,
     address: Sequelize.STRING,
+    resetToken: {
+        type: Sequelize.STRING,
+        allowNull: true
+    },
+    resetTokenExpiry: {
+        type: Sequelize.DATE,
+        allowNull: true
+    }
 }, {
     timestamps: false, // Không có createdAt và updatedAt
 });
