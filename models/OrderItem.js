@@ -47,3 +47,8 @@ const Product = require('./product');
 OrderItem.belongsTo(Order, {foreignKey: 'order_id', as: 'order'});
 // Một OrderItem thuộc về một Product
 OrderItem.belongsTo(Product, {foreignKey: 'product_id', as: 'product'});
+
+const Review = require('./review'); // Đảm bảo đường dẫn đúng
+
+// Một OrderItem có thể có một Review (nếu đã được đánh giá)
+OrderItem.hasOne(Review, { foreignKey: 'order_item_id', as: 'review' });
