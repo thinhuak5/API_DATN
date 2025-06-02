@@ -13,6 +13,8 @@ const ClientOrderHistoryController = require('../controllers/api/client/orderHis
 const {createPaymentQr, checkoutVNpay} = require('../controllers/api/client/vnpayController');
 const categoryParentController = require('../controllers/api/admin/categoryparentController');
 const momoController = require('../controllers/api/client/momoController');
+const ClientReviewController = require('../controllers/api/client/reviewController');
+
 
 
 
@@ -140,4 +142,17 @@ router.patch('/users/:id', upload.single('avatar'), UserController.update);
 router.post('/orders/checkout', authenticateToken, ClientCheckoutController.createOrder);
 router.get('/orders/history', authenticateToken, ClientOrderHistoryController.getOrderHistory);
 router.put('/orders/:id/cancel',authenticateToken, ClientOrderHistoryController.cancelOrder);
+
+// --- ROUTES CHO ĐÁNH GIÁ SẢN PHẨM ---
+// Tạo một đánh giá mới cho sản phẩm (cần đăng nhập)
+router.post('/products/:productId/reviews', authenticateToken, ClientReviewController.createReview);
+
+// Lấy tất cả đánh giá cho một sản phẩm (công khai)
+router.get('/products/:productId/reviews', ClientReviewController.getProductReviews);
+
+router.get('/products/eligible-for-review/:productId', // URL này sẽ được nối sau prefix /api (nếu có)
+    authenticateToken,
+    ClientReviewController.getEligibleOrderItemsForReview
+);
+
 module.exports = router;
