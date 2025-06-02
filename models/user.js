@@ -2,7 +2,6 @@ const Sequelize = require('sequelize');
 const Cart = require("../models/carts");
 const database = require('./database');
 const bcrypt = require('bcryptjs');
-const Review = require('./review');
 
 const User = database.define('users', {
     id: {
@@ -31,6 +30,4 @@ User.beforeCreate(async (user) => {
     const salt = await bcrypt.genSalt(10);
     user.password = await bcrypt.hash(user.password, salt);
 });
-
-User.hasMany(Review, { foreignKey: 'user_id', as: 'reviews' });
 module.exports = User;
