@@ -12,9 +12,9 @@ const Category = database.define('categories',
         status: Sequelize.TINYINT,
         images: Sequelize.STRING,
         parent_id: Sequelize.INTEGER
-
-
-
+            
+        
+        
     },
     {
         timestamps: false,

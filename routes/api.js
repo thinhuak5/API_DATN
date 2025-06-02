@@ -10,10 +10,9 @@ const CartController = require('../controllers/api/client/cartController');
 const ClientCheckoutController = require('../controllers/api/client/checkoutController'); // Controller checkout mới
 const {authenticateToken, requireLogin} = require('../middleware/authMiddleware');
 const ClientOrderHistoryController = require('../controllers/api/client/orderHistoryController');
-const {createPaymentQr, checkoutVNpay} = require('../controllers/api/client/vnpayController');
+const {createPaymentQr} = require('../controllers/api/client/vnpayController');
 const categoryParentController = require('../controllers/api/admin/categoryparentController');
-const momoController = require('../controllers/api/client/momoController');
-
+const ClientReviewController = require('../controllers/api/client/reviewController');
 
 
 /*const AuthController = require('../controllers/client/authController'); */
@@ -25,8 +24,8 @@ const momoController = require('../controllers/api/client/momoController');
 router.get('/categories/list', CategoryController.getAll);
 router.get('/categories/by-parent/:categoryparent_id', CategoryController.getByParent);
 router.get('/categories/:id', CategoryController.detail);
-router.post('/categories/add', upload.single('images'), CategoryController.create); //Thêm sản danh mục có hình ảnh
-router.put('/categories/:id', upload.single('images'), CategoryController.update); //Cập nhật danh mục có hình ảnh
+router.post('/categories/add', upload.single('images'),CategoryController.create); //Thêm sản danh mục có hình ảnh
+router.put('/categories/:id', upload.single('images'),CategoryController.update); //Cập nhật danh mục có hình ảnh
 router.delete('/categories/:id', CategoryController.delete);
 
 
@@ -51,7 +50,6 @@ router.delete('/products/:id', ProductController.delete);
 // router.post('/register', UserController.register);
 router.post('/register', upload.single('avatar'), UserController.register);
 router.post('/login', UserController.login);
-router.post('/login-google', UserController.loginGoogle);
 
 // Sản Phẩm Admin
 // router.post('/register', UserController.register);
@@ -70,8 +68,6 @@ router.put('/users/:id', upload.single('avatar'),  UserController.update);
 
 // Xóa user
 router.delete('/users/:id', UserController.delete);
-
-
 
 
 // // bình luận 
@@ -105,11 +101,6 @@ router.put('/cart/update/:product_id', authenticateToken, CartController.updateC
 
 // paymennt VNpay
 router.post('/create-qr', createPaymentQr);
-router.get('/check-payment-vnpay', checkoutVNpay);
-
-
-// payment MoMo
-router.post('/payments/momo', authenticateToken, momoController.createMomoPayment);
 
 /*
 router.post('/comments',CommentController.create);
@@ -140,4 +131,20 @@ router.patch('/users/:id', upload.single('avatar'), UserController.update);
 router.post('/orders/checkout', authenticateToken, ClientCheckoutController.createOrder);
 router.get('/orders/history', authenticateToken, ClientOrderHistoryController.getOrderHistory);
 router.put('/orders/:id/cancel',authenticateToken, ClientOrderHistoryController.cancelOrder);
+
+
+// --- ROUTES CHO ĐÁNH GIÁ SẢN PHẨM ---
+// Tạo một đánh giá mới cho sản phẩm (cần đăng nhập)
+router.post('/products/:productId/reviews', authenticateToken, ClientReviewController.createReview);
+
+// Lấy tất cả đánh giá cho một sản phẩm (công khai)
+router.get('/products/:productId/reviews', ClientReviewController.getProductReviews);
+
+router.get(
+    '/products/eligible-for-review/:productId', // URL này sẽ được nối sau prefix /api (nếu có)
+    authenticateToken,
+    ClientReviewController.getEligibleOrderItemsForReview
+);
+
+
 module.exports = router;

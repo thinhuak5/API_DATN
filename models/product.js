@@ -36,3 +36,7 @@ const OrderItem = require('./OrderItem'); // Đổi thành './orderItem' nếu t
 
 // Một Product có thể xuất hiện trong nhiều OrderItems
 Product.hasMany(OrderItem, {foreignKey: 'product_id', as: 'orderItems'});
+
+const Review = require('./review'); // Đảm bảo đường dẫn đúng
+
+Product.hasMany(Review, { foreignKey: 'product_id', as: 'reviews' });

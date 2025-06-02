@@ -9,13 +9,15 @@ const fs = require('fs'); // Đảm bảo import fs để kiểm tra thư mục 
 const app = express();
 
 
+
+
 // Sequelize models
 const database = require('./models/database');
 const Category = require('./models/category');
 const CategoryParent = require('./models/categoryparent');
 const Product = require('./models/product');
 
-const models = {Category, CategoryParent, Product};
+const models = { Category, CategoryParent, Product };
 
 // Gọi associate cho từng model nếu có
 Object.values(models).forEach(model => {
