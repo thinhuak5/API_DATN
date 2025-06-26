@@ -10,6 +10,7 @@ const Cart = database.define('carts', {
         },
         user_id: Sequelize.INTEGER,
         product_id: Sequelize.INTEGER,
+        variation_id: Sequelize.INTEGER,
         quantity: Sequelize.INTEGER,
         status: Sequelize.TINYINT,
     },

@@ -20,7 +20,7 @@ const User = database.define('users', {
     role: Sequelize.TINYINT,
     address: Sequelize.STRING,
 }, {
-    timestamps: false, // Không có createdAt và updatedAt
+    timestamps: false,
 });
 
 User.hasMany(Cart, {foreignKey: 'user_id'});

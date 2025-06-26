@@ -45,8 +45,7 @@ router.delete('/categoryparents/:id', categoryParentController.delete);
 // Sản Phẩm Admin
 router.get('/products/list', ProductController.getAll);
 router.get('/products/:id', ProductController.detail);
-router.post('/products/add', upload.single('images'), ProductController.create);
-router.put('/products/:id', upload.single('images'), ProductController.update);
+router.post('/products/add', upload.array('images', 10), ProductController.create);router.put('/products/:id', upload.array('images', 10), ProductController.update);
 router.delete('/products/:id', ProductController.delete);
 
 // Sản Phẩm Admin
@@ -91,18 +90,22 @@ router.post('/oders', OrderController.create);
 router.delete('/oders/:id', OrderController.delete);
 
 
-// thêm sản phẩm vào giỏ hàng
+// Thêm sản phẩm vào giỏ hàng
 router.post('/cart/add', authenticateToken, requireLogin, CartController.addToCart);
-// Xóa toàn bộ giỏ hàng của người dùng
-router.delete('/cart/clear', authenticateToken, CartController.clearCart);
-// routes/cartRoutes.js
-router.post('/cart/clear-selected', authenticateToken, CartController.clearCart); // Calls the new clearCart
-router.delete('/cart/clear-all', authenticateToken, CartController.clearAllCartItems); // Calls the clearAllCartItems
+
 // Lấy danh sách sản phẩm trong giỏ
 router.get('/cart', authenticateToken, CartController.getCart);
-// Xoá sản phẩm khỏi giỏ
-router.delete('/cart/:product_id', authenticateToken, CartController.removeFromCart);
-router.put('/cart/update/:product_id', authenticateToken, CartController.updateCart);
+
+// Cập nhật số lượng của một MỤC GIỎ HÀNG cụ thể
+// Frontend sẽ gửi { quantity: newQuantity } đến endpoint này
+router.put('/cart/update/:cart_item_id', authenticateToken, CartController.updateCart);
+
+// Xoá một MỤC GIỎ HÀNG cụ thể khỏi giỏ
+router.delete('/cart/:cart_item_id', authenticateToken, CartController.removeFromCart);
+
+// Xóa các MỤC GIỎ HÀNG đã chọn sau khi đặt hàng
+// Frontend sẽ gửi { selectedCartItemIds: [...] } trong body
+router.post('/cart/clear-selected-items', authenticateToken, CartController.clearCart); 
 
 
 // paymennt VNpay
@@ -112,30 +115,6 @@ router.get('/check-payment-vnpay', checkoutVNpay);
 
 // payment MoMo
 router.post('/payments/momo', authenticateToken, momoController.createMomoPayment);
-
-/*
-router.post('/comments',CommentController.create);
-router.put('/comments/:id',CommentController.update);
-router.patch('/comments/:id',CommentController.update);
-router.delete('/comments/:id',CommentController.delete);
-
-
-
-// // Tai Khoan
-// ---  USERS ---
-router.patch('/users/:id', upload.single('avatar'), UserController.update);
- */
-//
-
-// // đơn hàng
-// router.get('/oders',Category.getAll);
-// router.get('/oders',Category.detail);
-// router.post('/oders',Category.create);
-
-// // giỏ hàng
-// router.get('/carts',Category.getAll);
-// router.get('/carts',Category.detail);
-// router.post('/carts',Category.create);
 
 // Checkout - API MỚI
 // Cần middleware authenticateToken để đảm bảo chỉ user đã đăng nhập mới checkout được

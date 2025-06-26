@@ -70,9 +70,7 @@ const createPaymentQr = async (req, res) => {
             vnp_CreateDate: dateFormat(new Date()),
             vnp_ExpireDate: dateFormat(tomorrow),
         });
-
         return res.status(201).json(vnpayResponse);
-
     } catch (error) {
         console.error('Lỗi tạo QR thanh toán:', error);
         return res.status(500).json({message: 'Không tạo được link thanh toán', error: error.message});
@@ -104,7 +102,6 @@ const checkoutVNpay = async (req, res) => {
         return res.redirect('http://localhost:3001/cart?message=error');
     }
 };
-
 
 module.exports = {
     createPaymentQr,
