@@ -1,15 +1,14 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require("cors");
-const session = require('express-session');  // Đảm bảo import express-session
+const session = require('express-session'); 
 const mysql = require('mysql2');
 const bodyParser = require('body-parser');
 const multer = require('multer');
-const fs = require('fs'); // Đảm bảo import fs để kiểm tra thư mục uploads
+const fs = require('fs'); 
 const app = express();
 
 
-// Sequelize models
 const database = require('./models/database');
 const Category = require('./models/category');
 const CategoryParent = require('./models/categoryparent');
@@ -17,21 +16,12 @@ const Product = require('./models/product');
 
 const models = {Category, CategoryParent, Product};
 
-// Gọi associate cho từng model nếu có
 Object.values(models).forEach(model => {
     if (model.associate) {
         model.associate(models);
     }
 });
 
-// Sync database nếu cần
-// database.sync()
-//     .then(() => {
-//         console.log('Database đã đồng bộ!');
-//     })
-//     .catch((err) => {
-//         console.error('Lỗi khi sync database:', err);
-//     });
 
 
 
@@ -50,7 +40,6 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({extended: true}));
 
-// Tạo thư mục uploads nếu chưa tồn tại
 const uploadDir = './uploads';
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir);
@@ -67,7 +56,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
     storage: storage,
-    limits: {fileSize: 5 * 1024 * 1024}, // Giới hạn kích thước tệp 5MB
+    limits: {fileSize: 5 * 1024 * 1024},
     fileFilter: function (req, file, cb) {
         if (file.mimetype.startsWith('image/')) {
             cb(null, true);
@@ -80,11 +69,9 @@ const upload = multer({
 app.set("view engine", "ejs");
 app.set("views", "./views");
 
-// PUBLIC các folder
-app.use('/uploads', express.static('uploads')); // Cho phép truy cập thư mục uploads
-app.use(express.static("public")); // folder public vẫn giữ nguyên
+app.use('/uploads', express.static('uploads')); 
+app.use(express.static("public")); 
 
-// Route
 const apiRoute = require("./routes/api");
 app.use('/api', apiRoute);
 

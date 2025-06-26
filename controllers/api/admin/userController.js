@@ -196,7 +196,6 @@ static async loginGoogle(req, res) {
         name: dataUser.name || "Người dùng Google",
         email: dataUser.email,
         password: "google_auth",
-       
         avatar: dataUser.picture || "default-avatar.jpg",
         status: 1,
         role: 2,

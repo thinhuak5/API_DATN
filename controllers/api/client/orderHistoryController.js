@@ -1,7 +1,8 @@
-// controllers/api/client/orderHistoryController.js
 const Order = require('../../../models/order');
 const OrderItem = require('../../../models/OrderItem');
 const Product = require('../../../models/product');
+const ProductVariation = require('../../../models/productVariation');
+const ProductImage = require('../../../models/productImage'); // ĐẢM BẢO DÒNG NÀY CÓ VÀ ĐÚNG ĐƯỜNG DẪN
 
 exports.getOrderHistory = async (req, res, next) => {
     if (!req.user || !req.user.id) {
@@ -20,7 +21,17 @@ exports.getOrderHistory = async (req, res, next) => {
                         {
                             model: Product,
                             as: 'product',
-                            attributes: ['id', 'name', 'images']
+                            attributes: ['id', 'name', 'images'], // 'images' có thể là chuỗi ảnh chính
+                            include: [{ // --- ĐẢM BẢO INCLUDE NÀY CÓ ĐỂ LẤY PRODUCTIMAGES ---
+                                model: ProductImage,
+                                as: 'productImages', // Tên alias phải khớp với định nghĩa trong models/associations.js
+                                attributes: ['image_url'] // Chỉ lấy URL hình ảnh
+                            }]
+                        },
+                        { // --- ĐẢM BẢO INCLUDE NÀY CÓ ĐỂ LẤY BIẾN THỂ ĐÃ CHỌN ---
+                            model: ProductVariation,
+                            as: 'selectedVariation', // Alias này PHẢI khớp với alias trong models/OrderItem.js
+                            attributes: ['id', 'name', 'value', 'price'] // Lấy các thuộc tính cần thiết của biến thể
                         }
                     ]
                 }
@@ -31,7 +42,8 @@ exports.getOrderHistory = async (req, res, next) => {
         const ordersWithTotal = orders.map(order => {
             const orderJSON = order.toJSON();
             orderJSON.totalAmount = orderJSON.items.reduce((sum, item) => {
-                const price = Number(item.price) || 0;
+                // Sử dụng giá của biến thể nếu có, nếu không thì dùng giá của item (lưu lúc đặt hàng)
+                const price = Number(item.selectedVariation?.price || item.price) || 0;
                 const quantity = Number(item.quantity) || 0;
                 return sum + (price * quantity);
             }, 0);
@@ -46,7 +58,7 @@ exports.getOrderHistory = async (req, res, next) => {
     }
 };
 
-// Hàm cancelOrder đã được chỉnh sửa và chỉ còn một bản duy nhất
+// Hàm cancelOrder giữ nguyên
 exports.cancelOrder = async (req, res, next) => {
     if (!req.user || !req.user.id) {
         return res.status(401).json({ message: "Yêu cầu không được xác thực." });
