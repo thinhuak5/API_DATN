@@ -53,7 +53,9 @@ router.delete('/products/:id', ProductController.delete);
 router.post('/register', upload.single('avatar'), UserController.register);
 router.post('/login', UserController.login);
 router.post('/login-google', UserController.loginGoogle);
-
+// quên mật khẩu
+router.post('/forgot-password', UserController.forgotPassword);
+router.post('/reset-password', UserController.resetPassword);
 // Sản Phẩm Admin
 // router.post('/register', UserController.register);
 // router.post('/login', UserController.login);
@@ -75,14 +77,14 @@ router.delete('/users/:id', UserController.delete);
 
 
 
-// // bình luận 
+// // bình luận
 router.get('/comments', CommentController.getAll);
 router.get('/comments/:id', CommentController.detail);
 router.post('/comments', CommentController.create);
 router.put('/comments/:id', CommentController.update);
 router.delete('/comments/:id', CommentController.delete);
 
-// oder 
+// oder
 router.get('/oders', OrderController.getAll);
 router.get('/oders/:id', OrderController.detail);
 router.put('/oders/:id', OrderController.update);
@@ -105,7 +107,7 @@ router.delete('/cart/:cart_item_id', authenticateToken, CartController.removeFro
 
 // Xóa các MỤC GIỎ HÀNG đã chọn sau khi đặt hàng
 // Frontend sẽ gửi { selectedCartItemIds: [...] } trong body
-router.post('/cart/clear-selected-items', authenticateToken, CartController.clearCart); 
+router.post('/cart/clear-selected-items', authenticateToken, CartController.clearCart);
 
 
 // paymennt VNpay
