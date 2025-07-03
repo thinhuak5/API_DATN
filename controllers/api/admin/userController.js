@@ -13,6 +13,7 @@ const transporter = nodemailer.createTransport({
         pass: process.env.EMAIL_PASS
     }
 });
+//gmail 
 const forgotPasswordRequests = new Map();
 const isStrongPassword = (password) => {
     const minLength = 6;
