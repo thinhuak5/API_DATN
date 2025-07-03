@@ -76,5 +76,5 @@ const apiRoute = require("./routes/api");
 app.use('/api', apiRoute);
 
 app.listen(3000, function () {
-    console.log('Web đang chạy:  http://localhost:3000');
+    // console.log('Web đang chạy:  http://localhost:3000');
 });

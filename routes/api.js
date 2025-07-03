@@ -17,7 +17,7 @@ const ClientReviewController = require('../controllers/api/client/reviewControll
 
 
 
-
+const ContactController = require('../controllers/api/client/contactController');
 /*const AuthController = require('../controllers/client/authController'); */
 
 /* router.post('/register',upload.single('avatar'), AuthController.register ); */
@@ -133,5 +133,14 @@ router.get('/products/eligible-for-review/:productId', // URL này sẽ được
     authenticateToken,
     ClientReviewController.getEligibleOrderItemsForReview
 );
+// =----------------------------------------------đây
+router.post('/contact', ContactController.create);
+
+// Lấy danh sách tất cả phản hồi (dành cho admin)
+router.get('/admin/contact', ContactController.getAll);
+router.get('/admin/contact/:id', ContactController.getOne);
+
+// Trả lời phản hồi (admin cập nhật reply)
+router.post('/admin/contact/reply/:id', ContactController.reply);
 
 module.exports = router;
