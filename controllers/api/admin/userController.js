@@ -188,6 +188,7 @@ class UserController {
       res.status(500).json({ err: "Lỗi server" });
     }
   }
+
 static async loginGoogle(req, res) {
   try {
     const { tokenGoogle } = req.body;
@@ -239,6 +240,7 @@ static async loginGoogle(req, res) {
   }
 }
 
+
   // Forgot Password
   static async forgotPassword(req, res) {
     try {
@@ -289,6 +291,7 @@ static async loginGoogle(req, res) {
             <div style="text-align: center; margin: 30px 0;">
               <a href="${resetUrl}"
                  style="background-color: #007bff; color: white; padding: 12px 24px;
+
                         text-decoration: none; border-radius: 5px; display: inline-block;">
                 Đặt lại mật khẩu
               </a>
@@ -307,7 +310,6 @@ static async loginGoogle(req, res) {
 
       // Send email
       await transporter.sendMail(mailOptions);
-
       res.status(200).json({
         message: "Nếu email tồn tại, hướng dẫn đặt lại mật khẩu sẽ được gửi đến email của bạn."
       });
@@ -315,6 +317,7 @@ static async loginGoogle(req, res) {
       console.error("Lỗi khi gửi email đặt lại mật khẩu:", error);
       res.status(500).json({
         message: "Có lỗi xảy ra khi gửi email đặt lại mật khẩu. Vui lòng thử lại sau."
+
       });
     }
   }
@@ -339,6 +342,7 @@ static async loginGoogle(req, res) {
       if (!user) {
         return res.status(400).json({
           message: "Token không hợp lệ hoặc đã hết hạn. Vui lòng yêu cầu đặt lại mật khẩu mới."
+
         });
       }
 
@@ -349,7 +353,6 @@ static async loginGoogle(req, res) {
         resetToken: null,
         resetTokenExpiry: null
       });
-
       res.status(200).json({
         message: "Mật khẩu đã được đặt lại thành công. Vui lòng đăng nhập với mật khẩu mới."
       });

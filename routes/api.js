@@ -52,10 +52,7 @@ router.delete('/products/:id', ProductController.delete);
 // router.post('/register', UserController.register);
 router.post('/register', upload.single('avatar'), UserController.register);
 router.post('/login', UserController.login);
-router.post('/login-google', UserController.loginGoogle);
-// quên mật khẩu
-router.post('/forgot-password', UserController.forgotPassword);
-router.post('/reset-password', UserController.resetPassword);
+
 // Sản Phẩm Admin
 // router.post('/register', UserController.register);
 // router.post('/login', UserController.login);
@@ -123,17 +120,4 @@ router.post('/payments/momo', authenticateToken, momoController.createMomoPaymen
 router.post('/orders/checkout', authenticateToken, ClientCheckoutController.createOrder);
 router.get('/orders/history', authenticateToken, ClientOrderHistoryController.getOrderHistory);
 router.put('/orders/:id/cancel',authenticateToken, ClientOrderHistoryController.cancelOrder);
-
-// --- ROUTES CHO ĐÁNH GIÁ SẢN PHẨM ---
-// Tạo một đánh giá mới cho sản phẩm (cần đăng nhập)
-router.post('/products/:productId/reviews', authenticateToken, ClientReviewController.createReview);
-
-// Lấy tất cả đánh giá cho một sản phẩm (công khai)
-router.get('/products/:productId/reviews', ClientReviewController.getProductReviews);
-
-router.get('/products/eligible-for-review/:productId', // URL này sẽ được nối sau prefix /api (nếu có)
-    authenticateToken,
-    ClientReviewController.getEligibleOrderItemsForReview
-);
-
 module.exports = router;
