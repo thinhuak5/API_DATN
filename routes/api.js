@@ -75,9 +75,7 @@ router.put('/users/:id', upload.single('avatar'),  UserController.update);
 router.delete('/users/:id', UserController.delete);
 
 
-
-
-// // bình luận
+// // bình luận 
 router.get('/comments', CommentController.getAll);
 router.get('/comments/:id', CommentController.detail);
 router.post('/comments', CommentController.create);
@@ -91,8 +89,7 @@ router.put('/oders/:id', OrderController.update);
 router.post('/oders', OrderController.create);
 router.delete('/oders/:id', OrderController.delete);
 
-
-// Thêm sản phẩm vào giỏ hàng
+// thêm sản phẩm vào giỏ hàng
 router.post('/cart/add', authenticateToken, requireLogin, CartController.addToCart);
 
 // Lấy danh sách sản phẩm trong giỏ

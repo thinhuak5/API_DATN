@@ -25,12 +25,10 @@ class UserController {
     const { username, name, email, phone, password, avatar, status, role } =
       req.body;
 
-    // Kiểm tra các trường bắt buộc
-    if (!username || !name || !email || !phone || !password) {
-      return res
-        .status(400)
-        .json({ message: "Vui lòng điền đầy đủ thông tin!" });
-    }
+        // Kiểm tra các trường bắt buộc
+        if (!username || !name || !email || !phone || !password) {
+            return res.status(400).json({message: "Vui lòng điền đầy đủ thông tin!"});
+        }
 
     console.log("Trường đăng ký:", { username, name, email, phone });
 

@@ -28,7 +28,7 @@ const User = database.define('users', {
         allowNull: true
     }
 }, {
-    timestamps: false,
+    timestamps: false, // Không có createdAt và updatedAt
 });
 
 User.hasMany(Cart, {foreignKey: 'user_id'});
