@@ -188,6 +188,7 @@ class UserController {
       res.status(500).json({ err: "Lỗi server" });
     }
   }
+
 static async loginGoogle(req, res) {
   try {
     const { tokenGoogle } = req.body;
@@ -307,7 +308,6 @@ static async loginGoogle(req, res) {
 
       // Send email
       await transporter.sendMail(mailOptions);
-
       res.status(200).json({
         message: "Nếu email tồn tại, hướng dẫn đặt lại mật khẩu sẽ được gửi đến email của bạn."
       });
@@ -349,7 +349,6 @@ static async loginGoogle(req, res) {
         resetToken: null,
         resetTokenExpiry: null
       });
-
       res.status(200).json({
         message: "Mật khẩu đã được đặt lại thành công. Vui lòng đăng nhập với mật khẩu mới."
       });
