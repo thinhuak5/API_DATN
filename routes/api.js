@@ -14,7 +14,7 @@ const {createPaymentQr, checkoutVNpay} = require('../controllers/api/client/vnpa
 const categoryParentController = require('../controllers/api/admin/categoryparentController');
 const momoController = require('../controllers/api/client/momoController');
 const ClientReviewController = require('../controllers/api/client/reviewController');
-
+const DiscountController = require('../controllers/api/admin/discountController');
 
 
 const ContactController = require('../controllers/api/client/contactController');
@@ -141,6 +141,14 @@ router.get('/admin/contact/:id', ContactController.getOne);
 
 // Trả lời phản hồi (admin cập nhật reply)
 router.post('/admin/contact/reply/:id', ContactController.reply);
+
+// --- ROUTES CHO MÃ GIẢM GIÁ (DISCOUNT) ---
+router.get('/discounts', DiscountController.getAll);
+router.get('/discounts/:id', DiscountController.detail);
+router.post('/discounts', DiscountController.create);
+router.put('/discounts/:id', DiscountController.update);
+router.delete('/discounts/:id', DiscountController.delete);
+router.post('/discounts/check', DiscountController.check);
 
 
 module.exports = router;
