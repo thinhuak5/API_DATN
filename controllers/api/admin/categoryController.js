@@ -5,6 +5,8 @@ const {Op} = require("sequelize");
 exports.getAll = async (req, res, next) => {
   try {
     const data = await categoryModel.findAll();
+    // Nếu images là link Cloudinary thì trả về luôn, nếu là filename thì cần chuyển thành link Cloudinary (nếu cần)
+    // Ở đây giả sử images đã là link Cloudinary (nếu dùng upload Cloudinary)
     res.json(data);
   } catch (error) {
     console.error(error);
@@ -16,10 +18,9 @@ exports.getAll = async (req, res, next) => {
 exports.getByParent = async (req, res, next) => {
   try {
     const parentId = req.params.categoryparent_id;
-    // Đây phải là parent_id chứ không phải categoryparent_id
     const data = await categoryModel.findAll({
       where: {
-        parent_id: parentId,  // <-- sửa chỗ này
+        parent_id: parentId,
       }
     });
     res.json(data);
@@ -43,7 +44,8 @@ exports.create = async (req, res, next) => {
   try {
     const data = req.body;
     if (req.file) {
-      data.images = req.file.filename;
+      // Nếu dùng Cloudinary, req.file.path là link ảnh Cloudinary
+      data.images = req.file.path;
     }
     if (!data.name || typeof data.status === 'undefined') {
       return res.status(400).json({error: "Thiếu dữ liệu bắt buộc"});
@@ -60,7 +62,8 @@ exports.update = async (req, res, next) => {
   try {
     const data = req.body;
     if (req.file) {
-      data.images = req.file.filename;
+      // Nếu dùng Cloudinary, req.file.path là link ảnh Cloudinary
+      data.images = req.file.path;
     }
     const [updated] = await categoryModel.update(data, {
       where: {id: req.params.id}
