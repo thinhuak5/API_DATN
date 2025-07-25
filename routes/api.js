@@ -17,6 +17,8 @@ const ClientReviewController = require('../controllers/api/client/reviewControll
 const AdminReviewController = require('../controllers/api/admin/reviewAdminController');
 
 
+const DiscountController = require('../controllers/api/admin/discountController');
+const {deletePaidCartItems} = require("../controllers/api/client/cartController");
 
 const ContactController = require('../controllers/api/client/contactController');
 /*const AuthController = require('../controllers/client/authController'); */
@@ -111,7 +113,8 @@ router.post('/cart/clear-selected-items', authenticateToken, CartController.clea
 // paymennt VNpay
 router.post('/create-qr', createPaymentQr);
 router.get('/check-payment-vnpay', checkoutVNpay);
-
+router.get("/vnpay-return", checkoutVNpay);
+router.post("/vnpay-success", authenticateToken, deletePaidCartItems);
 
 // payment MoMo
 router.post('/payments/momo', authenticateToken, momoController.createMomoPayment);
@@ -124,8 +127,8 @@ router.put('/orders/:id/cancel',authenticateToken, ClientOrderHistoryController.
 
 // --- ROUTES CHO ĐÁNH GIÁ SẢN PHẨM ---
 router.post(
-    '/products/:productId/reviews', 
-    authenticateToken, 
+    '/products/:productId/reviews',
+    authenticateToken,
     upload.array('images', 5), // <--- SỬA ĐỔI: Chấp nhận tối đa 5 file ảnh với field name là 'images'
     ClientReviewController.createReview
 );
@@ -135,8 +138,8 @@ router.get('/products/:productId/reviews', ClientReviewController.getProductRevi
 
 // Cập nhật một đánh giá đã có (chỉ chủ sở hữu)
 router.put(
-    '/reviews/:reviewId', 
-    authenticateToken, 
+    '/reviews/:reviewId',
+    authenticateToken,
     upload.array('images', 5), // Cũng hỗ trợ upload ảnh mới khi sửa
     ClientReviewController.updateReview
 );
@@ -168,7 +171,7 @@ router.post('/admin/contact/reply/:id', ContactController.reply);
 const adminReviewRouter = express.Router();
 
 // Sử dụng middleware cho tất cả các route trong group này
-adminReviewRouter.use(authenticateToken, isAdmin); 
+adminReviewRouter.use(authenticateToken, isAdmin);
 
 adminReviewRouter.get('/', AdminReviewController.getAllReviews); // GET /api/admin/reviews
 adminReviewRouter.get('/:reviewId', AdminReviewController.getReviewDetails); // GET /api/admin/reviews/123

@@ -8,12 +8,6 @@ exports.addToCart = async (req, res) => {
     const userId = req.user.id;
     const { product_id, variation_id, quantity } = req.body;
 
-    // Log chi tiết dữ liệu nhận được từ client
-    console.log('--- addToCart Request Details (Backend) ---');
-    console.log('User ID:', userId);
-    console.log('Product ID (from req.body):', product_id);
-    console.log('Variation ID (from req.body):', variation_id);
-    console.log('Quantity (from req.body):', quantity);
 
 
     if (!product_id || !Number.isInteger(quantity) || quantity < 1) {
@@ -144,10 +138,6 @@ exports.updateCart = async (req, res) => {
     const cartItemId = req.params.cart_item_id; // <-- Lấy cart item ID từ URL
     const { quantity } = req.body; // <-- Lấy quantity trực tiếp từ body
 
-    console.log('--- updateCart Request Details (Backend) ---');
-    console.log('User ID:', userId);
-    console.log('Cart Item ID (from URL):', cartItemId);
-    console.log('New Quantity (from req.body):', quantity);
 
 
     // Kiểm tra số lượng hợp lệ
@@ -189,9 +179,7 @@ exports.removeFromCart = async (req, res) => {
     const userId = req.user.id;
     const cartItemId = req.params.cart_item_id; // <-- Lấy cart item ID từ URL
 
-    console.log('--- removeFromCart Request Details (Backend) ---');
-    console.log('User ID:', userId);
-    console.log('Cart Item ID to remove (from URL):', cartItemId);
+
 
 
     const cartItem = await Cart.findOne({
@@ -226,12 +214,8 @@ exports.clearCart = async (req, res) => {
     const userId = req.user.id;
     const { selectedCartItemIds } = req.body; // <-- Chấp nhận mảng các ID của mục giỏ hàng
 
-    console.log('--- clearCart Request Details (Backend) ---');
-    console.log('User ID:', userId);
-    console.log('Selected Cart Item IDs to clear:', selectedCartItemIds);
 
-
-    if (
+      if (
       !selectedCartItemIds ||
       !Array.isArray(selectedCartItemIds) ||
       selectedCartItemIds.length === 0
@@ -267,19 +251,32 @@ exports.clearCart = async (req, res) => {
   }
 };
 
-// Hàm này không còn sử dụng nếu bạn đã chuyển sang clearCart cho mục đích xóa sau checkout
-// exports.clearAllCartItems = async (req, res) => {
-//   try {
-//     const userId = req.user.id;
-//     await Cart.destroy({
-//       where: {
-//         user_id: userId,
-//         status: 0,
-//       },
-//     });
-//     return res.status(200).json({ message: "Đã xóa toàn bộ giỏ hàng sau khi đặt hàng" });
-//   } catch (error) {
-//     console.error("Lỗi khi xóa toàn bộ giỏ hàng:", error);
-//     return res.status(500).json({ message: "Lỗi server khi xóa giỏ hàng", error: error.message });
-//   }
-// };
+exports.deletePaidCartItems = async (req, res) => {
+    const userId = req.user.id; // lấy từ verifyToken
+    const {cartItemIds} = req.body;
+
+    if (!Array.isArray(cartItemIds) || cartItemIds.length === 0) {
+        return res.status(400).json({message: "Danh sách sản phẩm không hợp lệ."});
+    }
+
+    try {
+        const deleted = await Cart.destroy({
+            where: {
+                id: cartItemIds,
+                user_id: userId,
+                status: 0, // chỉ xóa sản phẩm chưa thanh toán
+            },
+        });
+
+        return res.status(200).json({
+            message: "Đã xóa sản phẩm đã thanh toán khỏi giỏ hàng.",
+            deletedCount: deleted,
+        });
+    } catch (err) {
+        console.error("Lỗi xóa cart:", err);
+        return res.status(500).json({message: "Lỗi máy chủ khi xóa cart."});
+    }
+};
+
+
+
