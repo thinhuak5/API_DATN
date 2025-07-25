@@ -15,7 +15,7 @@ const categoryParentController = require('../controllers/api/admin/categoryparen
 const momoController = require('../controllers/api/client/momoController');
 const ClientReviewController = require('../controllers/api/client/reviewController');
 const DiscountController = require('../controllers/api/admin/discountController');
-
+const {deletePaidCartItems} = require("../controllers/api/client/cartController");
 
 const ContactController = require('../controllers/api/client/contactController');
 /*const AuthController = require('../controllers/client/authController'); */
@@ -110,7 +110,8 @@ router.post('/cart/clear-selected-items', authenticateToken, CartController.clea
 // paymennt VNpay
 router.post('/create-qr', createPaymentQr);
 router.get('/check-payment-vnpay', checkoutVNpay);
-
+router.get("/vnpay-return", checkoutVNpay);
+router.post("/vnpay-success", authenticateToken, deletePaidCartItems);
 
 // payment MoMo
 router.post('/payments/momo', authenticateToken, momoController.createMomoPayment);
