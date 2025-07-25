@@ -55,7 +55,10 @@ module.exports = Review;
 const User = require('./user');
 const Product = require('./product');
 const OrderItem = require('./OrderItem'); // Giữ nguyên tên file của bạn
+const ReviewImage = require('./ReviewImage'); 
 
 Review.belongsTo(User, {foreignKey: 'user_id', as: 'user'});
 Review.belongsTo(Product, {foreignKey: 'product_id', as: 'product'});
 Review.belongsTo(OrderItem, {foreignKey: 'order_item_id', as: 'orderItemDetail'}); // 'orderItemDetail' để tránh trùng với 'items' của Order
+Review.hasMany(ReviewImage, { foreignKey: 'review_id', as: 'images', onDelete: 'CASCADE' });
+ReviewImage.belongsTo(Review, { foreignKey: 'review_id', as: 'review' });

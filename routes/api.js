@@ -8,13 +8,14 @@ const CommentController = require('../controllers/api/admin/commentController');
 const OrderController = require('../controllers/api/admin/orderController');
 const CartController = require('../controllers/api/client/cartController');
 const ClientCheckoutController = require('../controllers/api/client/checkoutController'); // Controller checkout mới
-const {authenticateToken, requireLogin} = require('../middleware/authMiddleware');
+const {authenticateToken, requireLogin, isAdmin} = require('../middleware/authMiddleware');
 const ClientOrderHistoryController = require('../controllers/api/client/orderHistoryController');
 const {createPaymentQr, checkoutVNpay} = require('../controllers/api/client/vnpayController');
 const categoryParentController = require('../controllers/api/admin/categoryparentController');
 const momoController = require('../controllers/api/client/momoController');
 const ClientReviewController = require('../controllers/api/client/reviewController');
-const DiscountController = require('../controllers/api/admin/discountController');
+const AdminReviewController = require('../controllers/api/admin/reviewAdminController');
+
 
 
 const ContactController = require('../controllers/api/client/contactController');
@@ -122,11 +123,30 @@ router.get('/orders/history', authenticateToken, ClientOrderHistoryController.ge
 router.put('/orders/:id/cancel',authenticateToken, ClientOrderHistoryController.cancelOrder);
 
 // --- ROUTES CHO ĐÁNH GIÁ SẢN PHẨM ---
-// Tạo một đánh giá mới cho sản phẩm (cần đăng nhập)
-router.post('/products/:productId/reviews', authenticateToken, ClientReviewController.createReview);
+router.post(
+    '/products/:productId/reviews', 
+    authenticateToken, 
+    upload.array('images', 5), // <--- SỬA ĐỔI: Chấp nhận tối đa 5 file ảnh với field name là 'images'
+    ClientReviewController.createReview
+);
 
 // Lấy tất cả đánh giá cho một sản phẩm (công khai)
 router.get('/products/:productId/reviews', ClientReviewController.getProductReviews);
+
+// Cập nhật một đánh giá đã có (chỉ chủ sở hữu)
+router.put(
+    '/reviews/:reviewId', 
+    authenticateToken, 
+    upload.array('images', 5), // Cũng hỗ trợ upload ảnh mới khi sửa
+    ClientReviewController.updateReview
+);
+
+// Xóa một đánh giá (chỉ chủ sở hữu)
+router.delete(
+    '/reviews/:reviewId',
+    authenticateToken,
+    ClientReviewController.deleteReview
+);
 
 router.get('/products/eligible-for-review/:productId', // URL này sẽ được nối sau prefix /api (nếu có)
     authenticateToken,
@@ -142,13 +162,21 @@ router.get('/admin/contact/:id', ContactController.getOne);
 // Trả lời phản hồi (admin cập nhật reply)
 router.post('/admin/contact/reply/:id', ContactController.reply);
 
-// --- ROUTES CHO MÃ GIẢM GIÁ (DISCOUNT) ---
-router.get('/discounts', DiscountController.getAll);
-router.get('/discounts/:id', DiscountController.detail);
-router.post('/discounts', DiscountController.create);
-router.put('/discounts/:id', DiscountController.update);
-router.delete('/discounts/:id', DiscountController.delete);
-router.post('/discounts/check', DiscountController.check);
+
+// --- ADMIN ROUTES CHO QUẢN LÝ ĐÁNH GIÁ ---
+// Prefix /admin/reviews
+const adminReviewRouter = express.Router();
+
+// Sử dụng middleware cho tất cả các route trong group này
+adminReviewRouter.use(authenticateToken, isAdmin); 
+
+adminReviewRouter.get('/', AdminReviewController.getAllReviews); // GET /api/admin/reviews
+adminReviewRouter.get('/:reviewId', AdminReviewController.getReviewDetails); // GET /api/admin/reviews/123
+adminReviewRouter.patch('/:reviewId/status', AdminReviewController.updateReviewStatus); // PATCH /api/admin/reviews/123/status
+adminReviewRouter.delete('/:reviewId', AdminReviewController.deleteReview); // DELETE /api/admin/reviews/123
+
+// Gắn router con vào router chính
+router.use('/admin/reviews', adminReviewRouter);
 
 
 module.exports = router;
