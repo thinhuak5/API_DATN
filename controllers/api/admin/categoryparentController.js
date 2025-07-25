@@ -5,13 +5,13 @@ const { Op } = require("sequelize");
 exports.getAll = async (req, res, next) => {
     try {
         const data = await categoryParentModel.findAll();
+        // Nếu dùng Cloudinary, image sẽ là link Cloudinary
         res.json(data);
         console.log("Dữ liệu nhận được:", data);
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: "Lỗi server khi lấy category parent" });
     }
-     
 };
 
 // Chi tiết category parent
@@ -31,7 +31,8 @@ exports.create = async (req, res, next) => {
         const data = req.body;
 
         if (req.file) {
-            data.image = req.file.filename;
+            // Nếu dùng Cloudinary, req.file.path là link ảnh Cloudinary
+            data.image = req.file.path;
         }
 
         if (!data.name || typeof data.status === 'undefined') {
@@ -52,7 +53,8 @@ exports.update = async (req, res, next) => {
         const data = req.body;
 
         if (req.file) {
-            data.image = req.file.filename;
+            // Nếu dùng Cloudinary, req.file.path là link ảnh Cloudinary
+            data.image = req.file.path;
         }
 
         const [updated] = await categoryParentModel.update(data, {

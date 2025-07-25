@@ -22,42 +22,32 @@ class UserController {
 
   // Đăng ký người dùng
   static async register(req, res) {
-    const { username, name, email, phone, password, avatar, status, role } =
-      req.body;
+    const { username, name, email, phone, password, status, role } = req.body;
 
-        // Kiểm tra các trường bắt buộc
-        if (!username || !name || !email || !phone || !password) {
-            return res.status(400).json({message: "Vui lòng điền đầy đủ thông tin!"});
-        }
-
-    console.log("Trường đăng ký:", { username, name, email, phone });
+    // Kiểm tra các trường bắt buộc
+    if (!username || !name || !email || !phone || !password) {
+      return res.status(400).json({ message: "Vui lòng điền đầy đủ thông tin!" });
+    }
 
     try {
-      console.log("Đang kiểm tra email có tồn tại không...");
       const existingUser = await User.findOne({ where: { email } });
       if (existingUser) {
         return res.status(400).json({ message: "Email đã tồn tại!" });
       }
 
-      console.log("Mã hóa mật khẩu...");
-      /*           console.log("Mật khẩu mã hóa thành công:", hashedPassword); */
+      // Nếu dùng Cloudinary, req.file.path là link ảnh Cloudinary
+      const avatarValue = req.file && req.file.path ? req.file.path : "default-avatar.jpg";
 
-      // Nếu không có avatar, sử dụng avatar mặc định
-      const avatarValue = req.file ? req.file.filename : "default-avatar.jpg";
-
-      // Nếu status hoặc role không có, sử dụng giá trị mặc định
       const newUser = await User.create({
         username,
         name,
         email,
         password: password,
         phone,
-        avatar: avatarValue, // Dùng avatarValue thay vì avatar
-        status: status || 1, // Status mặc định là 1 (kích hoạt)
-        role: role || 2, // Role mặc định là 2 (người dùng bình thường)
+        avatar: avatarValue,
+        status: status || 1,
+        role: role || 2,
       });
-
-      console.log("Đăng ký người dùng thành công", newUser);
 
       res.status(201).json({
         message: "Đăng ký thành công!",
@@ -82,7 +72,6 @@ class UserController {
   static async login(req, res) {
     try {
       const { email, password } = req.body;
-      console.log(req.body);
 
       const user = await User.findOne({ where: { email } });
       if (!user) {
@@ -104,6 +93,7 @@ class UserController {
           name: user.name,
           email: user.email,
           role: user.role,
+          avatar: user.avatar,
         },
         process.env.JWT_SECRET || "thinh",
         { expiresIn: "1h" }
@@ -112,6 +102,14 @@ class UserController {
       return res.status(200).json({
         message: "Đăng nhập thành công!",
         token,
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          avatar: user.avatar,
+          role: user.role,
+          status: user.status,
+        }
       });
     } catch (error) {
       console.error("Lỗi server:", error);
@@ -143,9 +141,6 @@ class UserController {
       if (!user) {
         return res.status(404).json({ error: "Người dùng không tìm thấy" });
       }
-      console.log(user);
-
-      // Gửi phản hồi JSON đúng cách
       res.json(user.toJSON());
     } catch (err) {
       console.error("Lỗi khi lấy dữ liệu người dùng:", err);
@@ -158,15 +153,20 @@ class UserController {
     try {
       const data = req.body;
 
-      if (req.file) {
-        data.avatar = req.file.filename;
+      // Nếu dùng Cloudinary, req.file.path là link ảnh Cloudinary
+      if (req.file && req.file.path) {
+        data.avatar = req.file.path;
       }
 
-      const user = await User.update(data, {
+      const [updated] = await User.update(data, {
         where: { id: req.params.id },
       });
 
-      res.json(user);
+      if (updated === 0) {
+        return res.status(404).json({ error: "Người dùng không tìm thấy" });
+      }
+
+      res.json({ message: "Cập nhật người dùng thành công" });
     } catch (err) {
       console.error(err);
       res.status(500).json({ err: "Lỗi server" });
@@ -180,62 +180,63 @@ class UserController {
         where: { id: req.params.id },
       });
 
-      res.json(user);
+      res.json({ message: "Xóa người dùng thành công" });
     } catch (err) {
       console.error(err);
       res.status(500).json({ err: "Lỗi server" });
     }
   }
-static async loginGoogle(req, res) {
-  try {
-    const { tokenGoogle } = req.body;
 
-    if (!tokenGoogle || typeof tokenGoogle !== "string") {
-      return res.status(400).json({ message: "Token không hợp lệ" });
-    }
+  static async loginGoogle(req, res) {
+    try {
+      const { tokenGoogle } = req.body;
 
-    const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+      if (!tokenGoogle || typeof tokenGoogle !== "string") {
+        return res.status(400).json({ message: "Token không hợp lệ" });
+      }
 
-    const ticket = await client.verifyIdToken({
-      idToken: tokenGoogle,
-      audience: process.env.GOOGLE_CLIENT_ID,
-    });
-    const dataUser = ticket.getPayload();
-    if (!dataUser || !dataUser.email) {
-      return res.status(400).json({ message: "Token không chứa thông tin email" });
-    }
-    let user = await User.findOne({ where: { email: dataUser.email } });
-    if (!user) {
-      user = await User.create({
-        username: dataUser.email.split('@')[0],
-        name: dataUser.name || "Người dùng Google",
-        email: dataUser.email,
-        password: "google_auth",
-        avatar: dataUser.picture || "default-avatar.jpg",
-        status: 1,
-        role: 2,
+      const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+      const ticket = await client.verifyIdToken({
+        idToken: tokenGoogle,
+        audience: process.env.GOOGLE_CLIENT_ID,
       });
+      const dataUser = ticket.getPayload();
+      if (!dataUser || !dataUser.email) {
+        return res.status(400).json({ message: "Token không chứa thông tin email" });
+      }
+      let user = await User.findOne({ where: { email: dataUser.email } });
+      if (!user) {
+        user = await User.create({
+          username: dataUser.email.split('@')[0],
+          name: dataUser.name || "Người dùng Google",
+          email: dataUser.email,
+          password: "google_auth",
+          avatar: dataUser.picture || "default-avatar.jpg",
+          status: 1,
+          role: 2,
+        });
+      }
+      // Trả về avatar là link Cloudinary hoặc link Google
+      const token = jwt.sign({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        avatar: user.avatar,
+      }, process.env.JWT_SECRET || "thinh", { expiresIn: "1h" });
+
+      return res.status(200).json({
+        message: "Đăng nhập Google thành công!",
+        user,
+        token,
+      });
+
+    } catch (error) {
+      console.error("Lỗi đăng nhập Google:", error);
+      return res.status(500).json({ message: "Lỗi máy chủ", error: error.message });
     }
-    // Thêm trường picture vào token để frontend lấy avatar
-    const token = jwt.sign({
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      picture: user.avatar, // Thêm dòng này
-    }, process.env.JWT_SECRET || "thinh", { expiresIn: "1h" });
-
-    return res.status(200).json({
-      message: "Đăng nhập Google thành công!",
-      user,
-      token,
-    });
-
-  } catch (error) {
-    console.error("Lỗi đăng nhập Google:", error);
-    return res.status(500).json({ message: "Lỗi máy chủ", error: error.message });
   }
-}
 
   // Forgot Password
   static async forgotPassword(req, res) {
@@ -268,7 +269,6 @@ static async loginGoogle(req, res) {
         resetToken,
         resetTokenExpiry
       });
-
 
       recentRequests.push(now);
       forgotPasswordRequests.set(clientIP, recentRequests);
@@ -330,10 +330,8 @@ static async loginGoogle(req, res) {
       const user = await User.findOne({
         where: {
           resetToken: token,
-        //   resetTokenExpiry: { [Op.gt]: new Date() }
         }
       });
-      console.log(user);
       if (!user) {
         return res.status(400).json({
           message: "Token không hợp lệ hoặc đã hết hạn. Vui lòng yêu cầu đặt lại mật khẩu mới."

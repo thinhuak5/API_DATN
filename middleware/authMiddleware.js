@@ -1,14 +1,11 @@
-// middleware/authMiddleware.js (Ví dụ cơ bản với JWT)
 const jwt = require('jsonwebtoken');
-const User = require('../models/user'); // Import model User
-const JWT_SECRET = process.env.JWT_SECRET || 'thinh'; // Nên dùng biến môi trường
-
+const User = require('../models/user'); 
+const JWT_SECRET = process.env.JWT_SECRET || 'thinh'; 
 
 const authenticateToken = async (req, res, next) => {
     const authHeader = req.headers['authorization'];
     console.log(JWT_SECRET);
 
-    // Nếu không có header hoặc không có "Bearer "
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
         console.warn("Thiếu hoặc sai định dạng token trong header");
         return res.status(401).json({message: 'Token không hợp lệ hoặc thiếu "Bearer "'});
