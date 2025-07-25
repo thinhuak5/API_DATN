@@ -2,8 +2,8 @@
 const sequelize = require('../../../models/database');
 const Order = require('../../../models/order');
 const OrderItem = require('../../../models/OrderItem');
-const ProductVariation = require('../../../models/productVariation'); // Đảm bảo import ProductVariation
-const Product = require('../../../models/product'); // Đảm bảo import Product (nếu bạn cần truy vấn nó)
+const ProductVariation = require('../../../models/productVariation');
+const Product = require('../../../models/product'); 
 
 exports.createOrder = async (req, res, next) => {
     if (!req.user || !req.user.id) {
@@ -32,7 +32,6 @@ exports.createOrder = async (req, res, next) => {
     const t = await sequelize.transaction();
 
     try {
-        // 1. Tạo đơn hàng mới
         const newOrder = await Order.create({
             user_id: authenticatedUserId,
             name,
@@ -45,48 +44,41 @@ exports.createOrder = async (req, res, next) => {
 
         const orderId = newOrder.id;
 
-        // 2. Chuẩn bị dữ liệu chi tiết đơn hàng
-        // Cần lấy lại thông tin product_id và variation_id từ database nếu cần xác thực thêm
-        // Nhưng nếu bạn tin tưởng dữ liệu từ frontend, có thể dùng trực tiếp item.productId và item.variationId
+       
         const orderItemsData = [];
         for (const item of items) {
-            let finalPrice = item.price; // Giá từ frontend (đã được ưu tiên biến thể)
-            let variationIdToSave = item.variationId || null; // variationId từ frontend
+            let finalPrice = item.price; 
+            let variationIdToSave = item.variationId || null; 
 
-            // (Tùy chọn) Xác thực và lấy giá từ database một lần nữa để đảm bảo tính toàn vẹn dữ liệu
-            // Nếu bạn muốn chắc chắn giá và variation_id là chính xác từ DB tại thời điểm đặt hàng:
+            
             if (variationIdToSave) {
                 const variation = await ProductVariation.findByPk(variationIdToSave);
                 if (variation) {
-                    finalPrice = variation.price; // Lấy giá từ biến thể trong DB
-                    // variationIdToSave = variation.id; // Đảm bảo ID đúng
+                    finalPrice = variation.price; 
                 } else {
                     console.warn(`Biến thể ID ${variationIdToSave} không tìm thấy trong DB. Đặt variation_id về null.`);
-                    variationIdToSave = null; // Đặt về null nếu biến thể không tồn tại
+                    variationIdToSave = null; 
                 }
-            } else { // Sản phẩm không có biến thể, xác thực giá sản phẩm gốc
+            } else { 
                 const product = await Product.findByPk(item.productId);
                 if (product) {
-                    finalPrice = product.price; // Lấy giá từ sản phẩm gốc trong DB
+                    finalPrice = product.price; 
                 } else {
                     console.warn(`Sản phẩm ID ${item.productId} không tìm thấy trong DB.`);
-                    // Có thể xử lý lỗi hoặc bỏ qua mục này
                 }
             }
-            // ----------------------------------------------------------------------------------
 
             orderItemsData.push({
                 order_id: orderId,
                 product_id: item.productId,
-                variation_id: variationIdToSave, // <<< ĐÃ THÊM variation_id VÀO ĐÂY!
+                variation_id: variationIdToSave, 
                 quantity: item.quantity,
-                price: finalPrice, // Sử dụng giá đã được xác thực (hoặc giá từ frontend nếu bạn tin tưởng)
+                price: finalPrice, 
             });
         }
 
         await OrderItem.bulkCreate(orderItemsData, {transaction: t});
 
-        // 3. Commit transaction
         await t.commit();
 
         console.log("Order created successfully:", newOrder.toJSON());

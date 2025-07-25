@@ -1,103 +1,155 @@
-const Order = require('../../../models/order');
-const OrderItem = require('../../../models/OrderItem');
-const Product = require('../../../models/product');
-const ProductVariation = require('../../../models/productVariation');
-const ProductImage = require('../../../models/productImage'); // ĐẢM BẢO DÒNG NÀY CÓ VÀ ĐÚNG ĐƯỜNG DẪN
+const Order = require("../../../models/order");
+const OrderItem = require("../../../models/OrderItem");
+const Product = require("../../../models/product");
+const ProductVariation = require("../../../models/productVariation");
+const ProductImage = require("../../../models/productImage");
+const database = require("../../../models/database");
 
 exports.getOrderHistory = async (req, res, next) => {
-    if (!req.user || !req.user.id) {
-        return res.status(401).json({ message: "Yêu cầu không được xác thực." });
-    }
-    const userId = req.user.id;
+  if (!req.user || !req.user.id) {
+    return res.status(401).json({ message: "Yêu cầu không được xác thực." });
+  }
+  const userId = req.user.id;
 
-    try {
-        const orders = await Order.findAll({
-            where: { user_id: userId },
-            include: [
+  try {
+    const orders = await Order.findAll({
+      where: { user_id: userId },
+      include: [
+        {
+          model: OrderItem,
+          as: "items",
+          include: [
+            {
+              model: Product,
+              as: "product",
+              attributes: ["id", "name"], // Loại bỏ 'images', chỉ lấy các trường cần thiết
+              include: [
                 {
-                    model: OrderItem,
-                    as: 'items',
-                    include: [
-                        {
-                            model: Product,
-                            as: 'product',
-                            attributes: ['id', 'name', 'images'], // 'images' có thể là chuỗi ảnh chính
-                            include: [{ // --- ĐẢM BẢO INCLUDE NÀY CÓ ĐỂ LẤY PRODUCTIMAGES ---
-                                model: ProductImage,
-                                as: 'productImages', // Tên alias phải khớp với định nghĩa trong models/associations.js
-                                attributes: ['image_url'] // Chỉ lấy URL hình ảnh
-                            }]
-                        },
-                        { // --- ĐẢM BẢO INCLUDE NÀY CÓ ĐỂ LẤY BIẾN THỂ ĐÃ CHỌN ---
-                            model: ProductVariation,
-                            as: 'selectedVariation', // Alias này PHẢI khớp với alias trong models/OrderItem.js
-                            attributes: ['id', 'name', 'value', 'price'] // Lấy các thuộc tính cần thiết của biến thể
-                        }
-                    ]
-                }
-            ],
-            order: [['createdAt', 'DESC']]
-        });
+                  model: ProductImage,
+                  as: "productImages",
+                  attributes: ["image_url"],
+                  limit: 1, // Chỉ lấy ảnh đầu tiên
+                },
+              ],
+            },
+            {
+              model: ProductVariation,
+              as: "selectedVariation",
+              attributes: ["id", "name", "value", "price"],
+            },
+          ],
+        },
+      ],
+      order: [["createdAt", "DESC"]],
+    });
 
-        const ordersWithTotal = orders.map(order => {
-            const orderJSON = order.toJSON();
-            orderJSON.totalAmount = orderJSON.items.reduce((sum, item) => {
-                // Sử dụng giá của biến thể nếu có, nếu không thì dùng giá của item (lưu lúc đặt hàng)
-                const price = Number(item.selectedVariation?.price || item.price) || 0;
-                const quantity = Number(item.quantity) || 0;
-                return sum + (price * quantity);
-            }, 0);
-            return orderJSON;
-        });
+    // Định dạng lại dữ liệu để trả về URL Cloudinary trực tiếp
+    const ordersWithTotal = orders.map((order) => {
+      const orderJSON = order.toJSON();
+      orderJSON.items = orderJSON.items.map((item) => {
+        // Lấy image_url từ productImages (Cloudinary URL)
+        if (
+          item.product &&
+          item.product.productImages &&
+          item.product.productImages.length > 0
+        ) {
+          item.product.image_url = item.product.productImages[0].image_url;
+          delete item.product.productImages; // Xóa productImages để giảm payload
+        } else {
+          item.product.image_url = null; // Hoặc trả về URL ảnh mặc định nếu cần
+        }
+        return item;
+      });
 
-        res.json(ordersWithTotal);
+      // Tính tổng tiền
+      orderJSON.totalAmount = orderJSON.items.reduce((sum, item) => {
+        const price = Number(item.selectedVariation?.price || item.price) || 0;
+        const quantity = Number(item.quantity) || 0;
+        return sum + price * quantity;
+      }, 0);
 
-    } catch (error) {
-        console.error("Lỗi khi lấy lịch sử đơn hàng:", error);
-        res.status(500).json({ message: "Đã xảy ra lỗi khi truy vấn lịch sử đơn hàng." });
-    }
+      return orderJSON;
+    });
+
+    console.log("--- getOrderHistory Result ---");
+    ordersWithTotal.forEach((order) => {
+      console.log(`Order ID: ${order.id}, Total Amount: ${order.totalAmount}`);
+      order.items.forEach((item) => {
+        console.log(
+          `  Product: ${item.product.name}, Image URL: ${item.product.image_url}`
+        );
+      });
+    });
+
+    res.json(ordersWithTotal);
+  } catch (error) {
+    console.error("Lỗi khi lấy lịch sử đơn hàng:", error);
+    res.status(500).json({
+      message: "Đã xảy ra lỗi khi truy vấn lịch sử đơn hàng.",
+      error: error.message,
+    });
+  }
 };
 
-// Hàm cancelOrder giữ nguyên
 exports.cancelOrder = async (req, res, next) => {
-    if (!req.user || !req.user.id) {
-        return res.status(401).json({ message: "Yêu cầu không được xác thực." });
+  if (!req.user || !req.user.id) {
+    return res.status(401).json({ message: "Yêu cầu không được xác thực." });
+  }
+  const userId = req.user.id;
+  const { id: orderId } = req.params;
+  const { reason } = req.body;
+
+  const t = await database.transaction();
+  try {
+    if (!reason || reason.trim() === "") {
+      await t.rollback();
+      return res
+        .status(400)
+        .json({ message: "Lý do hủy đơn hàng là bắt buộc." });
     }
-    const userId = req.user.id;
-    const { id: orderId } = req.params;
-    const { reason } = req.body; // Lấy lý do hủy từ body
 
-    if (!reason || reason.trim() === '') {
-        return res.status(400).json({ message: "Lý do hủy đơn hàng là bắt buộc." });
+    const order = await Order.findOne({
+      where: {
+        id: orderId,
+        user_id: userId,
+      },
+      transaction: t,
+    });
+
+    if (!order) {
+      await t.rollback();
+      return res.status(404).json({
+        message: "Không tìm thấy đơn hàng hoặc bạn không có quyền hủy đơn này.",
+      });
     }
 
-    try {
-        const order = await Order.findOne({
-            where: {
-                id: orderId,
-                user_id: userId // Đảm bảo user chỉ hủy được đơn hàng của chính mình
-            }
-        });
-
-        if (!order) {
-            return res.status(404).json({ message: "Không tìm thấy đơn hàng hoặc bạn không có quyền hủy đơn này." });
-        }
-
-        // Kiểm tra trạng thái đơn hàng có cho phép hủy không (ví dụ: chỉ cho hủy khi status=1)
-        if (order.status !== 1) { // 1: Chờ xác nhận
-            return res.status(400).json({ message: "Không thể hủy đơn hàng ở trạng thái này." });
-        }
-
-        order.status = 0; // 0: Đã hủy
-        order.cancellation_reason = reason.trim(); // Lưu lý do hủy vào trường mới
-        order.cancelledAt = new Date(); // Thêm thời gian hủy nếu muốn
-
-        await order.save();
-
-        res.json({ message: `Đơn hàng #${orderId} đã được hủy thành công.`, orderId: orderId, newStatus: 0, reason: reason.trim() });
-
-    } catch (error) {
-        console.error(`Lỗi khi hủy đơn hàng #${orderId}:`, error);
-        res.status(500).json({ message: "Đã xảy ra lỗi khi hủy đơn hàng." });
+    if (order.status !== 1) {
+      await t.rollback();
+      return res
+        .status(400)
+        .json({ message: "Không thể hủy đơn hàng ở trạng thái này." });
     }
+
+    order.status = 0;
+    order.cancellation_reason = reason.trim();
+    order.cancelledAt = new Date();
+
+    await order.save({ transaction: t });
+
+    await t.commit();
+    console.log(`Đơn hàng #${orderId} đã được hủy. Lý do: ${reason.trim()}`);
+    res.json({
+      message: `Đơn hàng #${orderId} đã được hủy thành công.`,
+      orderId: orderId,
+      newStatus: 0,
+      reason: reason.trim(),
+    });
+  } catch (error) {
+    await t.rollback();
+    console.error(`Lỗi khi hủy đơn hàng #${orderId}:`, error);
+    res.status(500).json({
+      message: "Đã xảy ra lỗi khi hủy đơn hàng.",
+      error: error.message,
+    });
+  }
 };
