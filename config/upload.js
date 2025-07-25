@@ -31,7 +31,7 @@ const storage = new CloudinaryStorage({
     cloudinary: cloudinary,
     params: {
         folder: 'uploads', // Tên thư mục trên Cloudinary
-        allowed_formats: ['jpg', 'png', 'jpeg'],
+        allowed_formats: ['jpg', 'png', 'jpeg', 'webp'],
         transformation: [{ width: 1000, height: 1000, crop: 'limit' }]
     }
 });
