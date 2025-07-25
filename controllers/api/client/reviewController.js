@@ -1,94 +1,72 @@
 // controllers/api/client/reviewController.js
 const Review = require('../../../models/review');
+const ReviewImage = require('../../../models/ReviewImage');
 const Order = require('../../../models/order');
 const OrderItem = require('../../../models/OrderItem');
 const Product = require('../../../models/product');
 const User = require('../../../models/user'); // <--- DÒNG ĐƯỢC THÊM VÀO
+const database = require('../../../models/database');
 const {Op} = require('sequelize');
 
-// Controller cho phép người dùng tạo đánh giá cho sản phẩm họ đã mua
 exports.createReview = async (req, res) => {
+    const t = await database.transaction(); // Bắt đầu transaction
     try {
-        const userId = req.user.id; // Lấy từ middleware authenticateToken
-        const {productId} = req.params; // Lấy productId từ URL
+        const userId = req.user.id;
+        const {productId} = req.params;
         const {rating, comment, order_item_id} = req.body;
 
+        // ... (phần validation và kiểm tra orderItem, order status, existing review giữ nguyên) ...
         if (!rating || rating < 1 || rating > 5) {
-            return res.status(400).json({message: 'Điểm đánh giá phải từ 1 đến 5.'});
+             return res.status(400).json({message: 'Điểm đánh giá phải từ 1 đến 5.'});
         }
-
         if (!order_item_id) {
-            return res.status(400).json({message: 'Thiếu thông tin mục đơn hàng (order_item_id).'});
+             return res.status(400).json({message: 'Thiếu thông tin mục đơn hàng (order_item_id).'});
         }
-
-        // 1. Kiểm tra xem OrderItem có tồn tại và thuộc về người dùng hiện tại không
-        const orderItem = await OrderItem.findOne({
-            where: {
-                id: order_item_id,
-                product_id: productId // Đảm bảo OrderItem này là của đúng sản phẩm đang xem
-            },
-            include: [{
-                model: Order,
-                as: 'order',
-                where: {user_id: userId},
-                required: true // Đảm bảo OrderItem này thuộc về user_id đang đăng nhập
-            }]
-        });
-
+        const orderItem = await OrderItem.findOne({ where: { id: order_item_id, product_id: productId }, include: [{ model: Order, as: 'order', where: {user_id: userId}, required: true }]});
         if (!orderItem) {
-            return res.status(403).json({message: 'Bạn chỉ có thể đánh giá sản phẩm bạn đã mua từ mục đơn hàng này.'});
+             return res.status(403).json({message: 'Bạn chỉ có thể đánh giá sản phẩm bạn đã mua từ mục đơn hàng này.'});
         }
-
-        // 2. Kiểm tra xem Order liên quan đã hoàn thành chưa (ví dụ status = 3 là đã giao, 4 là hoàn thành)
-        // Bạn cần định nghĩa rõ các trạng thái này trong model Order của mình
-        // Giả sử Order có status: 1 (Chờ xác nhận), 2 (Đang xử lý), 3 (Đang giao), 4 (Hoàn thành), 5 (Đã hủy)
         const associatedOrder = await Order.findByPk(orderItem.order_id);
-        if (!associatedOrder || ![3, 4].includes(associatedOrder.status)) { // Chỉ cho phép đánh giá khi đơn hàng đã giao hoặc hoàn thành
+        if (!associatedOrder || ![3, 4].includes(associatedOrder.status)) {
             return res.status(403).json({message: 'Bạn chỉ có thể đánh giá sản phẩm sau khi đơn hàng đã được giao hoặc hoàn thành.'});
         }
-
-
-        // 3. Kiểm tra xem người dùng đã đánh giá cho order_item_id này chưa
-        const existingReview = await Review.findOne({
-            where: {
-                // user_id: userId, // Không cần user_id ở đây vì order_item_id đã là unique
-                // product_id: productId, // Cũng không cần vì order_item_id đã gắn với product
-                order_item_id: order_item_id // order_item_id đã là unique trong bảng reviews
-            }
-        });
-
+        const existingReview = await Review.findOne({ where: { order_item_id: order_item_id } });
         if (existingReview) {
-            // Nếu muốn kiểm tra user_id để thông báo "Bạn đã đánh giá..." thì giữ lại điều kiện user_id
-            // const existingReviewForUser = await Review.findOne({
-            //     where: {
-            //         user_id: userId,
-            //         order_item_id: order_item_id
-            //     }
-            // });
-            // if (existingReviewForUser) {
-            //    return res.status(409).json({ message: 'Bạn đã đánh giá sản phẩm này từ mục đơn hàng này rồi.' });
-            // }
-            // Nếu chỉ check order_item_id (nghĩa là item này đã được ai đó đánh giá - điều này không nên xảy ra nếu logic đúng)
-            return res.status(409).json({message: 'Mục đơn hàng này đã được đánh giá.'});
+             return res.status(409).json({message: 'Mục đơn hàng này đã được đánh giá.'});
         }
+        // --- Kết thúc phần kiểm tra ---
 
-        // 4. Tạo đánh giá mới
+        // 4. Tạo đánh giá mới trong transaction
         const newReview = await Review.create({
             user_id: userId,
-            product_id: productId, // Lưu lại productId để dễ truy vấn review theo sản phẩm
+            product_id: productId,
             order_item_id: order_item_id,
             rating: parseInt(rating, 10),
             comment: comment,
-            status: 1 // Mặc định là đã duyệt, hoặc 0 nếu cần duyệt
+            status: 1
+        }, {transaction: t});
+
+        // 5. Xử lý hình ảnh nếu có
+        if (req.files && req.files.length > 0) {
+            const imagesData = req.files.map(file => ({
+                review_id: newReview.id,
+                image_url: file.filename // Lưu tên file đã được multer xử lý
+            }));
+            await ReviewImage.bulkCreate(imagesData, {transaction: t});
+        }
+
+        await t.commit(); // Hoàn thành transaction
+
+        // Lấy lại review với đầy đủ thông tin để trả về
+        const finalReview = await Review.findByPk(newReview.id, {
+            include: [{model: ReviewImage, as: 'images'}]
         });
 
-        res.status(201).json({message: 'Cảm ơn bạn đã đánh giá sản phẩm!', review: newReview});
+        res.status(201).json({message: 'Cảm ơn bạn đã đánh giá sản phẩm!', review: finalReview});
 
     } catch (error) {
+        await t.rollback(); // Hoàn tác transaction nếu có lỗi
         console.error("Lỗi khi tạo đánh giá:", error);
-        if (error.name === 'SequelizeUniqueConstraintError') { // Do order_item_id là unique
-            return res.status(409).json({message: 'Mục đơn hàng này đã được đánh giá.'});
-        }
         res.status(500).json({message: 'Lỗi server khi tạo đánh giá.', error: error.message});
     }
 };
@@ -101,22 +79,24 @@ exports.getProductReviews = async (req, res) => {
         const reviews = await Review.findAll({
             where: {
                 product_id: productId,
-                status: 1 // Chỉ lấy các đánh giá đã được duyệt
+                status: 1
             },
             include: [
                 {
                     model: User,
                     as: 'user',
-                    attributes: ['id', 'name', 'avatar'] // Chỉ lấy các thông tin cần thiết của user
+                    attributes: ['id', 'name', 'avatar']
+                },
+                {
+                    model: ReviewImage, // <--- THÊM VÀO
+                    as: 'images',
+                    attributes: ['id', 'image_url']
                 }
             ],
-            order: [['review_date', 'DESC']] // Sắp xếp theo ngày mới nhất (hoặc createdAt nếu review_date không dùng)
+            order: [['createdAt', 'DESC']]
         });
-
-        // if (!reviews || reviews.length === 0) { // Vẫn trả về 200 nếu không có reviews
-        //     return res.status(200).json({ message: 'Sản phẩm này chưa có đánh giá nào.', reviews: [], totalReviews: 0, averageRating: 0 });
-        // }
-
+        
+        // ... (Phần tính toán average rating giữ nguyên) ...
         let totalRating = 0;
         reviews.forEach(review => {
             totalRating += review.rating;
@@ -217,6 +197,100 @@ exports.getEligibleOrderItemsForReview = async (req, res) => {
     } catch (error) {
         console.error("Lỗi khi lấy các mục đơn hàng có thể đánh giá:", error);
         res.status(500).json({message: "Lỗi server khi xử lý yêu cầu.", error: error.message});
+    }
+};
+
+exports.updateReview = async (req, res) => {
+    const { reviewId } = req.params;
+    const userId = req.user.id;
+    const { rating, comment, imagesToDelete } = req.body; // imagesToDelete là một mảng ID các ảnh cần xóa
+
+    const t = await database.transaction();
+    try {
+        const review = await Review.findByPk(reviewId);
+
+        if (!review) {
+            await t.rollback();
+            return res.status(404).json({ message: 'Không tìm thấy đánh giá này.' });
+        }
+
+        // Kiểm tra quyền: chỉ người viết mới được sửa
+        if (review.user_id !== userId) {
+            await t.rollback();
+            return res.status(403).json({ message: 'Bạn không có quyền chỉnh sửa đánh giá này.' });
+        }
+
+        // Cập nhật rating và comment
+        review.rating = rating || review.rating;
+        review.comment = comment !== undefined ? comment : review.comment;
+        await review.save({ transaction: t });
+
+        // Xóa các ảnh được yêu cầu
+        if (imagesToDelete && imagesToDelete.length > 0) {
+            // Chuyển chuỗi JSON thành mảng nếu cần
+            const idsToDelete = typeof imagesToDelete === 'string' ? JSON.parse(imagesToDelete) : imagesToDelete;
+            if (Array.isArray(idsToDelete) && idsToDelete.length > 0) {
+                 await ReviewImage.destroy({
+                    where: {
+                        id: { [Op.in]: idsToDelete },
+                        review_id: reviewId // Đảm bảo chỉ xóa ảnh của review này
+                    },
+                    transaction: t
+                });
+            }
+        }
+
+        // Thêm ảnh mới nếu có
+        if (req.files && req.files.length > 0) {
+            const imagesData = req.files.map(file => ({
+                review_id: reviewId,
+                image_url: file.filename
+            }));
+            await ReviewImage.bulkCreate(imagesData, { transaction: t });
+        }
+
+        await t.commit();
+
+        // Lấy lại review đã cập nhật để trả về
+        const updatedReview = await Review.findByPk(reviewId, {
+            include: [
+                { model: User, as: 'user', attributes: ['id', 'name', 'avatar'] },
+                { model: ReviewImage, as: 'images', attributes: ['id', 'image_url'] }
+            ]
+        });
+
+        res.status(200).json({ message: 'Cập nhật đánh giá thành công!', review: updatedReview });
+
+    } catch (error) {
+        await t.rollback();
+        console.error("Lỗi khi cập nhật đánh giá:", error);
+        res.status(500).json({ message: 'Lỗi server khi cập nhật đánh giá.', error: error.message });
+    }
+};
+
+// Controller MỚI cho phép người dùng xóa đánh giá của họ
+exports.deleteReview = async (req, res) => {
+    const { reviewId } = req.params;
+    const userId = req.user.id;
+
+    try {
+        const review = await Review.findByPk(reviewId);
+
+        if (!review) {
+            return res.status(404).json({ message: 'Không tìm thấy đánh giá này.' });
+        }
+
+        if (review.user_id !== userId) {
+            return res.status(403).json({ message: 'Bạn không có quyền xóa đánh giá này.' });
+        }
+
+        // Xóa review, các ảnh liên quan sẽ tự động bị xóa do 'onDelete: CASCADE'
+        await review.destroy();
+
+        res.status(200).json({ message: 'Đã xóa đánh giá thành công.' });
+    } catch (error) {
+        console.error("Lỗi khi xóa đánh giá:", error);
+        res.status(500).json({ message: 'Lỗi server khi xóa đánh giá.', error: error.message });
     }
 };
 
