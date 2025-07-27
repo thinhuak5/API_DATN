@@ -197,17 +197,14 @@ router.put(
 
 // --- ROUTES CHO ĐÁNH GIÁ SẢN PHẨM ---
 router.post(
-  "/products/:productId/reviews",
+  "/variationId/:variationId/reviews",
   authenticateToken,
   upload.array("images", 5), // <--- SỬA ĐỔI: Chấp nhận tối đa 5 file ảnh với field name là 'images'
   ClientReviewController.createReview
 );
 
 // Lấy tất cả đánh giá cho một sản phẩm (công khai)
-router.get(
-  "/products/:productId/reviews",
-  ClientReviewController.getProductReviews
-);
+router.get('/variationId/:variationId/reviews', ClientReviewController.getProductReviews);
 
 // Cập nhật một đánh giá đã có (chỉ chủ sở hữu)
 router.put(
@@ -225,7 +222,7 @@ router.delete(
 );
 
 router.get(
-  "/products/eligible-for-review/:productId", // URL này sẽ được nối sau prefix /api (nếu có)
+  "/products/eligible-for-review/:variationId", // URL này sẽ được nối sau prefix /api (nếu có)
   authenticateToken,
   ClientReviewController.getEligibleOrderItemsForReview
 );

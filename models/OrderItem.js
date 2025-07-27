@@ -12,10 +12,7 @@ const OrderItem = database.define('order_items',
             type: Sequelize.INTEGER,
             allowNull: false,
         },
-        product_id: {
-            type: Sequelize.INTEGER,
-            allowNull: false,
-        },
+
         variation_id: { // <-- ĐẢM BẢO TRƯỜNG NÀY TỒN TẠI VÀ CÓ CẤU HÌNH ĐÚNG
             type: Sequelize.INTEGER,
             allowNull: true, // Cho phép NULL nếu là sản phẩm mặc định

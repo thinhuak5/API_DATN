@@ -14,77 +14,61 @@ exports.addToCart = async (req, res) => {
     // Validation
     if (!product_id || !Number.isInteger(quantity) || quantity < 1) {
       await t.rollback();
-      console.error("Validation error: Missing product_id or invalid quantity", { product_id, quantity });
       return res.status(400).json({ message: "Thiếu thông tin sản phẩm hoặc số lượng không hợp lệ." });
     }
 
-    // Kiểm tra sản phẩm chính
+    // Lấy sản phẩm chính
     const product = await Product.findByPk(product_id, { transaction: t });
     if (!product) {
       await t.rollback();
-      console.error("Error: Main Product not found for ID:", product_id);
       return res.status(404).json({ message: "Sản phẩm chính không tồn tại." });
     }
-    console.log("Main Product found:", product.name);
 
-    // Kiểm tra biến thể nếu có
     let actualVariationIdToUse = null;
     if (variation_id) {
       const parsedVariationId = parseInt(variation_id, 10);
       if (isNaN(parsedVariationId)) {
         await t.rollback();
-        console.error("Error: variation_id is not a valid number:", variation_id);
-        return res.status(400).json({ message: "ID biến thể không hợp lệ (phải là số)." });
+        return res.status(400).json({ message: "ID biến thể không hợp lệ." });
       }
 
+      // **Chỉnh lại include với as: 'product'**
       const variation = await ProductVariation.findOne({
-        where: { id: parsedVariationId, product_id: product_id },
-        include: [{ model: Product }],
+        where: { id: parsedVariationId, product_id },
+        include: [{ model: Product, as: 'product' }],
         transaction: t,
       });
 
-      console.log("Result of ProductVariation.findOne:", variation ? variation.toJSON() : `No variation found for ID ${parsedVariationId} under product ID ${product_id}`);
-
       if (!variation) {
         await t.rollback();
-        return res.status(400).json({ message: "Biến thể không hợp lệ hoặc không tồn tại cho sản phẩm này." });
+        return res.status(400).json({ message: "Biến thể không tồn tại cho sản phẩm này." });
       }
       actualVariationIdToUse = parsedVariationId;
     }
 
-    // Kiểm tra sản phẩm đã có trong giỏ chưa
+    // Check giỏ hàng
     const existingItem = await Cart.findOne({
-      where: {
-        user_id: userId,
-        product_id,
-        variation_id: actualVariationIdToUse,
-        status: 0, // Chỉ kiểm tra các mục chưa thanh toán
-      },
+      where: { user_id: userId, variation_id: actualVariationIdToUse, status: 0 },
       transaction: t,
     });
 
     if (existingItem) {
-      console.log("Existing cart item found. Updating quantity.");
       existingItem.quantity += quantity;
       await existingItem.save({ transaction: t });
-      console.log("Updated cart item:", existingItem.toJSON());
     } else {
-      console.log("No existing cart item found. Creating new one.");
-      const newCartItem = await Cart.create({
-        user_id: userId,
-        product_id,
+      await Cart.create({
+        user_id:     userId,
         variation_id: actualVariationIdToUse,
         quantity,
-        status: 0,
+        status:       0,
       }, { transaction: t });
-      console.log("Created new cart item:", newCartItem.toJSON());
     }
 
     await t.commit();
     return res.status(200).json({ message: "Đã thêm sản phẩm vào giỏ hàng." });
   } catch (error) {
     await t.rollback();
-    console.error("Lỗi thêm vào giỏ hàng (Backend Error):", error);
+    console.error("Lỗi thêm vào giỏ hàng:", error);
     return res.status(500).json({ message: "Lỗi server khi thêm vào giỏ hàng.", error: error.message });
   }
 };
@@ -93,61 +77,51 @@ exports.getCart = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    const cartItems = await Cart.findAll({
-      where: {
-        user_id: userId,
-        status: 0,
-      },
+    const items = await Cart.findAll({
+      where: { user_id: userId, status: 0 },
       include: [
-        {
-          model: Product,
-          attributes: ["id", "name", "price", "discount_price"],
-          include: [
-            {
-              model: ProductImage,
-              as: "productImages",
-              attributes: ["image_url"],
-              limit: 1,
-            },
-          ],
-        },
         {
           model: ProductVariation,
           as: "variation",
           attributes: ["id", "name", "value", "price"],
+          include: [
+            {
+              model: ProductImage,
+              as: "productImages",
+              attributes: ["image_url"]
+            }
+          ],
         },
       ],
     });
 
-    // Chuyển đổi dữ liệu để đảm bảo image_url là URL Cloudinary đầy đủ
-    const formattedCartItems = cartItems.map(item => {
-      const itemJSON = item.toJSON();
-      if (itemJSON.product && itemJSON.product.productImages && itemJSON.product.productImages.length > 0) {
-        itemJSON.product.image_url = itemJSON.product.productImages[0].image_url;
-        delete itemJSON.product.productImages; // Xóa productImages để giảm payload
+    // Format lại JSON để client dễ dùng
+    const result = items.map(ci => {
+      const json = ci.toJSON();
+      const { variation } = json;
+
+      if (variation) {
+        // Gán ảnh đầu tiên từ variation.productImages lên variation.image_url
+        if (variation.productImages && variation.productImages.length) {
+          variation.image_url = variation.productImages[0].image_url;
+        }
+        // Xóa mảng không cần thiết
+        delete variation.productImages;
       }
-      return itemJSON;
+
+      return json;
     });
 
-    console.log("--- getCart Result (Backend) ---");
-    formattedCartItems.forEach(item => {
-      console.log(`Cart Item: ID=${item.id}, Product ID=${item.product_id}, Variation ID=${item.variation_id}, Quantity=${item.quantity}`);
-      if (item.product) {
-        console.log(`  Product Name: ${item.product.name}, Image URL: ${item.product.image_url}`);
-      }
-      if (item.variation) {
-        console.log(`  Variation Name: ${item.variation.name}, Value: ${item.variation.value}`);
-      } else {
-        console.log("  No variation associated with this cart item.");
-      }
+    return res.status(200).json(result);
+  } catch (err) {
+    console.error("Lỗi khi lấy giỏ hàng:", err);
+    return res.status(500).json({
+      message: "Lỗi server khi lấy giỏ hàng.",
+      error: err.message
     });
-
-    return res.status(200).json(formattedCartItems);
-  } catch (error) {
-    console.error("Lỗi khi lấy giỏ hàng (Backend Error):", error);
-    return res.status(500).json({ message: "Lỗi server khi lấy giỏ hàng.", error: error.message });
   }
 };
+
 
 exports.updateCart = async (req, res) => {
   const t = await database.transaction();

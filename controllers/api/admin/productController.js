@@ -1,139 +1,122 @@
-const {
-  Product,
-  ProductImage,
-  ProductVariation,
-  OrderItem,
-} = require("../../../models"); // Đảm bảo import đúng các models
-const sequelize = require("../../../models/database"); // Import sequelize instance cho transaction
+// controllers/api/admin/productController.js
 
-exports.getAll = async (req, res, next) => {
+const { Product, ProductVariation, ProductImage, OrderItem } = require("../../../models");
+const sequelize = require("../../../models/database");
+const cloudinary = require('cloudinary').v2;
+exports.getAll = async (req, res) => {
   try {
     const data = await Product.findAll({
-      include: [{ model: ProductImage, as: "productImages" }],
+      include: [{
+        model: ProductVariation,
+        as: "variations",
+        include: [{
+          model: ProductImage,
+          as: "productImages",
+          attributes: ["id","image_url","variations_id"]
+        }]
+      }]
     });
-    res.json(data); // Đổi sang trả về JSON để test API, hoặc dùng res.render nếu có view
+    return res.json(data);
   } catch (error) {
     console.error("Lỗi khi lấy tất cả sản phẩm:", error);
-    res.status(500).json({ error: "Lỗi server khi lấy danh sách sản phẩm" });
+    return res.status(500).json({ error: "Lỗi server khi lấy danh sách sản phẩm" });
   }
 };
 
 exports.detail = async (req, res) => {
   try {
     const product = await Product.findByPk(req.params.id, {
-      include: [
-        { model: ProductImage, as: "productImages" },
-        { model: ProductVariation, as: "variations" },
-      ],
+      include: [{
+        model: ProductVariation,
+        as: "variations",
+        include: [{
+          model: ProductImage,
+          as: "productImages",
+          attributes: ["id","image_url","variations_id"]
+        }]
+      }]
     });
     if (!product) {
       return res.status(404).json({ message: "Không tìm thấy sản phẩm." });
     }
-    res.json(product);
+    return res.json(product);
   } catch (error) {
     console.error("Lỗi khi lấy chi tiết sản phẩm:", error);
-    res.status(500).json({ error: "Lỗi server khi lấy chi tiết sản phẩm" });
+    return res.status(500).json({ error: "Lỗi server khi lấy chi tiết sản phẩm" });
   }
 };
 
 exports.create = async (req, res) => {
-  let newProduct = null;
-  const t = await sequelize.transaction(); // Bắt đầu transaction
+  const t = await sequelize.transaction();
   try {
     const {
-      name,
-      description,
-      price,
-      discount_price,
-      view,
-      status,
-      category_id,
-      quantity,
-      minStock,
-      categoryparent_id,
-      variations, // Chuỗi JSON từ FE
-      imageUrls, // <-- nhận từ middleware router (nếu có)
+      name, description, price, discount_price,
+      view, status, category_id, quantity, minStock, categoryparent_id,
+      variations  // JSON string
     } = req.body;
 
-    const uploadedFiles = req.files; // Multer sẽ là mảng file
+    // 1) tạo product
+    const newProduct = await Product.create({
+      name, description, price, discount_price,
+      view: view || 0, status,
+      category_id, quantity: quantity || 0,
+      min_stock: minStock || 0, categoryparent_id
+    }, { transaction: t });
 
-    // Tạo sản phẩm chính
-    newProduct = await Product.create(
-      {
-        name,
-        description,
-        price,
-        discount_price,
-        view: view || 0,
-        status,
-        category_id,
-        quantity: quantity || 0,
-        minStock: minStock || 0,
-        categoryparent_id,
-      },
-      { transaction: t }
-    );
+    // 2) parse metadata
+    const parsedVars = JSON.parse(variations);
 
-    // Lưu nhiều hình ảnh (ưu tiên lấy từ imageUrls nếu có, fallback sang req.files)
-    let productImages = [];
-    if (Array.isArray(imageUrls) && imageUrls.length > 0) {
-      productImages = imageUrls.map((url) => ({
-        product_id: newProduct.id,
-        image_url: url,
-      }));
-    } else if (Array.isArray(uploadedFiles) && uploadedFiles.length > 0) {
-      productImages = uploadedFiles.map((file) => ({
-        product_id: newProduct.id,
-        image_url: file.path, // Cloudinary trả về file.path là URL
-      }));
-    }
-    if (productImages.length > 0) {
-      await ProductImage.bulkCreate(productImages, { transaction: t });
+    // 3) nhóm file upload theo variation_idx
+    const files = req.files || [];
+    const idxs  = req.body.variation_idx || [];
+    const filesMap = {};
+    if (files.length) {
+      const arrIdx = Array.isArray(idxs) ? idxs : [idxs];
+      arrIdx.forEach((idxStr, i) => {
+        const idxNum = parseInt(idxStr, 10);
+        filesMap[idxNum] = filesMap[idxNum] || [];
+        filesMap[idxNum].push(files[i]);
+      });
     }
 
-    // Lưu nhiều biến thể
-    if (variations) {
-      let parsedVariations = [];
-      try {
-        parsedVariations = JSON.parse(variations);
-      } catch (e) {
-        throw new Error("Dữ liệu biến thể không hợp lệ!"); // Ném lỗi để transaction rollback
-      }
-      if (Array.isArray(parsedVariations) && parsedVariations.length > 0) {
-        const productVariations = parsedVariations.map((variant) => ({
-          product_id: newProduct.id,
-          name: variant.name,
-          value: variant.value,
-          price: variant.price !== "" ? parseFloat(variant.price) : null,
-          quantity: parseInt(variant.quantity, 10) || 0,
-          minStock:
-            variant.minStock !== undefined ? parseInt(variant.minStock, 10) : 0,
-          type: variant.type || "regular",
+    // 4) tạo từng biến thể + ảnh đi kèm
+    for (let i = 0; i < parsedVars.length; i++) {
+      const v = parsedVars[i];
+      const createdVar = await ProductVariation.create({
+        product_id: newProduct.id,
+        name:  v.name,
+        value: v.value,
+        price: v.price !== "" ? parseFloat(v.price) : null,
+        quantity: parseInt(v.quantity,10) || 0,
+        min_stock: parseInt(v.minStock,10) || 0,
+        type: v.type || "regular"
+      }, { transaction: t });
+
+      const bucket = filesMap[i] || [];
+      if (bucket.length) {
+        const imgs = bucket.map(file => ({
+          variations_id: createdVar.id,
+          image_url:     file.path
         }));
-        await ProductVariation.bulkCreate(productVariations, {
-          transaction: t,
-        });
+        await ProductImage.bulkCreate(imgs, { transaction: t });
       }
     }
 
-    await t.commit(); // Commit transaction nếu mọi thứ thành công
-    res.status(200).json({
-      message: "Sản phẩm, hình ảnh và biến thể đã được thêm thành công!",
-      product: newProduct,
-      images: productImages.map((img) => img.image_url), // trả về danh sách URL ảnh
+    await t.commit();
+    return res.status(201).json({
+      message: "Tạo sản phẩm + biến thể + ảnh thành công!",
+      product: newProduct
     });
+
   } catch (err) {
-    await t.rollback(); // Rollback transaction nếu có lỗi
+    await t.rollback();
     console.error("Lỗi tạo sản phẩm:", err);
-    res.status(500).json({
-      error: "Đã xảy ra lỗi khi thêm sản phẩm và các thuộc tính liên quan",
-      details: err.message,
-    });
+    return res.status(500).json({ error: err.message });
   }
 };
 
 exports.update = async (req, res) => {
-  const t = await sequelize.transaction(); // Bắt đầu transaction
+  const t = await sequelize.transaction();
   try {
     const {
       name,
@@ -146,14 +129,13 @@ exports.update = async (req, res) => {
       quantity,
       minStock,
       categoryparent_id,
-      variations, // Dữ liệu biến thể từ frontend, cần chứa 'id' cho biến thể hiện có
-      removed_images, // Các URL ảnh cần xóa
-      imageUrls, // <-- nhận từ middleware router (nếu có)
+      variations, // JSON string, mỗi biến thể có thể có mảng removedImages
+      removedImages, // Mảng URLs ảnh cần xóa
+      removedVariationImages, // JSON string object { idx: [url1, url2], … }
     } = req.body;
-
     const productId = req.params.id;
 
-    // 1. Cập nhật sản phẩm chính
+    // 1) Cập nhật thông tin sản phẩm
     const [updated] = await Product.update(
       {
         name,
@@ -164,254 +146,146 @@ exports.update = async (req, res) => {
         status,
         category_id,
         quantity,
-        minStock,
+        min_stock: minStock,
         categoryparent_id,
       },
       { where: { id: productId }, transaction: t }
     );
+    if (!updated) throw new Error("Không tìm thấy sản phẩm");
 
-    if (!updated) {
-      await t.rollback();
-      return res.status(404).json({ error: "Sản phẩm không tìm thấy" });
-    }
+    // 2) Xóa ảnh sản phẩm cũ đã được yêu cầu xóa
+    if (removedImages) {
+      const toRemove = JSON.parse(removedImages); // Mảng URL ảnh cần xóa
+      if (toRemove.length) {
+        // Xóa ảnh khỏi Cloudinary
+        for (let url of toRemove) {
+          const publicId = url.split('/').pop().split('.')[0]; // Lấy public_id từ URL
+          await cloudinary.uploader.destroy(publicId); // Xóa ảnh trên Cloudinary
+        }
 
-    // 2. Xử lý ảnh: Xóa ảnh bị xóa, thêm ảnh mới
-    if (removed_images) {
-      const removedArr = JSON.parse(removed_images);
-      if (Array.isArray(removedArr) && removedArr.length > 0) {
+        // Sau khi xóa ảnh trên Cloudinary, xóa ảnh khỏi cơ sở dữ liệu
         await ProductImage.destroy({
           where: {
-            product_id: productId,
-            image_url: removedArr,
+            image_url: toRemove, // URL ảnh cần xóa
           },
           transaction: t,
         });
       }
     }
 
-    const uploadedFiles = req.files;
-    let productImages = [];
-    if (Array.isArray(imageUrls) && imageUrls.length > 0) {
-      productImages = imageUrls.map((url) => ({
-        product_id: productId,
-        image_url: url,
-      }));
-    } else if (Array.isArray(uploadedFiles) && uploadedFiles.length > 0) {
-      productImages = uploadedFiles.map((file) => ({
-        product_id: productId,
-        image_url: file.path, // Cloudinary trả về file.path là URL
-      }));
-    }
-    if (productImages.length > 0) {
-      await ProductImage.bulkCreate(productImages, { transaction: t });
-    }
-
-    // 3. Cập nhật biến thể: Cập nhật biến thể hiện có, tạo mới và xóa biến thể không còn
-    if (variations) {
-      let parsedVariations = [];
-      try {
-        parsedVariations = JSON.parse(variations);
-      } catch (e) {
-        throw new Error("Dữ liệu biến thể không hợp lệ!");
-      }
-
-      const existingVariations = await ProductVariation.findAll({
-        where: { product_id: productId },
-        transaction: t,
+    // 3) Nhóm file mới upload
+    const files = req.files || [];
+    const idxs = req.body.variation_idx || [];
+    const filesMap = {};
+    if (files.length) {
+      const arrIdx = Array.isArray(idxs) ? idxs : [idxs];
+      arrIdx.forEach((idxStr, i) => {
+        const idxNum = parseInt(idxStr, 10);
+        filesMap[idxNum] = filesMap[idxNum] || [];
+        filesMap[idxNum].push(files[i]);
       });
+    }
 
-      const variationsToCreate = [];
-      const variationIdsToKeep = new Set();
+    // 4) Cập nhật hoặc tạo mới biến thể
+    const parsedVars = JSON.parse(variations || "[]");
+    const removedVarImgsMap = JSON.parse(removedVariationImages || "{}");
 
-      for (const incomingVariant of parsedVariations) {
-        if (incomingVariant.id) {
-          // Nếu có ID, đây là biến thể hiện có cần cập nhật
-          variationIdsToKeep.add(incomingVariant.id);
-          await ProductVariation.update(
-            {
-              name: incomingVariant.name,
-              value: incomingVariant.value,
-              price:
-                incomingVariant.price !== ""
-                  ? parseFloat(incomingVariant.price)
-                  : null,
-              quantity: parseInt(incomingVariant.quantity, 10) || 0,
-              minStock:
-                incomingVariant.minStock !== undefined
-                  ? parseInt(incomingVariant.minStock, 10)
-                  : 0,
-              type: incomingVariant.type || "regular",
-            },
-            {
-              where: { id: incomingVariant.id, product_id: productId },
-              transaction: t,
-            }
-          );
-        } else {
-          // Nếu không có ID, đây là biến thể mới cần tạo
-          variationsToCreate.push({
-            product_id: productId,
-            name: incomingVariant.name,
-            value: incomingVariant.value,
-            price:
-              incomingVariant.price !== ""
-                ? parseFloat(incomingVariant.price)
-                : null,
-            quantity: parseInt(incomingVariant.quantity, 10) || 0,
-            minStock:
-              incomingVariant.minStock !== undefined
-                ? parseInt(incomingVariant.minStock, 10)
-                : 0,
-            type: incomingVariant.type || "regular",
-          });
-        }
-      }
+    // Lấy tất cả các biến thể hiện tại để biết ID
+    const existingVars = await ProductVariation.findAll({
+      where: { product_id: productId },
+      transaction: t,
+    });
 
-      if (variationsToCreate.length > 0) {
-        await ProductVariation.bulkCreate(variationsToCreate, {
-          transaction: t,
-        });
-      }
-
-      // Tìm các biến thể hiện có trong DB nhưng không có trong dữ liệu gửi lên (cần xóa)
-      const variationIdsToDelete = existingVariations
-        .filter(
-          (existingVariant) => !variationIdsToKeep.has(existingVariant.id)
-        )
-        .map((existingVariant) => existingVariant.id);
-
-      if (variationIdsToDelete.length > 0) {
-        // Kiểm tra xem các biến thể cần xóa có liên kết với OrderItem hay không
-        const variationsLinkedToOrders = await ProductVariation.findAll({
-          where: {
-            id: variationIdsToDelete,
+    for (let i = 0; i < parsedVars.length; i++) {
+      const v = parsedVars[i];
+      if (v.id) {
+        // Cập nhật biến thể
+        await ProductVariation.update(
+          {
+            name: v.name,
+            value: v.value,
+            price: v.price !== "" ? parseFloat(v.price) : null,
+            quantity: parseInt(v.quantity, 10) || 0,
+            min_stock: parseInt(v.minStock, 10) || 0,
+            type: v.type || "regular",
           },
-          include: [
-            {
-              model: OrderItem,
-              as: "orderItems",
-              attributes: ["id"],
-            },
-          ],
-          transaction: t,
-        });
-
-        const undeletableVariationIds = variationsLinkedToOrders
-          .filter((v) => v.orderItems && v.orderItems.length > 0)
-          .map((v) => v.id);
-
-        const actuallyDeletableVariationIds = variationIdsToDelete.filter(
-          (id) => !undeletableVariationIds.includes(id)
+          {
+            where: { id: v.id, product_id: productId },
+            transaction: t,
+          }
         );
 
-        if (undeletableVariationIds.length > 0) {
-          await t.rollback();
-          const details = variationsLinkedToOrders
-            .filter((v) => v.orderItems && v.orderItems.length > 0)
-            .map((v) => ({ id: v.id, name: v.name, value: v.value }));
+        // Xóa ảnh biến thể cũ nếu người dùng chọn xóa
+        const toRem = removedVarImgsMap[i] || [];
+        if (toRem.length) {
+          // Xóa ảnh khỏi Cloudinary
+          for (let url of toRem) {
+            const publicId = url.split('/').pop().split('.')[0]; // Lấy public_id từ URL
+            await cloudinary.uploader.destroy(publicId); // Xóa ảnh trên Cloudinary
+          }
 
-          return res.status(400).json({
-            error:
-              "Không thể xóa một số biến thể vì chúng được liên kết với các đơn hàng hiện có.",
-            details: details,
-          });
-        }
-
-        // Chỉ xóa những biến thể không có liên kết với đơn hàng
-        if (actuallyDeletableVariationIds.length > 0) {
-          await ProductVariation.destroy({
-            where: { id: actuallyDeletableVariationIds },
+          // Sau khi xóa ảnh trên Cloudinary, xóa ảnh khỏi cơ sở dữ liệu
+          await ProductImage.destroy({
+            where: {
+              variations_id: v.id,
+              image_url: toRem, // URL ảnh cần xóa
+            },
             transaction: t,
           });
         }
+
+        // Thêm ảnh mới cho biến thể
+        const bucket = filesMap[i] || [];
+        if (bucket.length) {
+          const imgs = bucket.map((f) => ({
+            variations_id: v.id,
+            image_url: f.path,
+          }));
+          await ProductImage.bulkCreate(imgs, { transaction: t });
+        }
       }
     }
 
-    await t.commit(); // Commit transaction nếu mọi thứ thành công
-    res
-      .status(200)
-      .json({
-        message: "Cập nhật sản phẩm thành công!",
-        images: productImages.map((img) => img.image_url),
-      });
-  } catch (error) {
-    await t.rollback(); // Rollback transaction nếu có lỗi
-    console.error("Lỗi cập nhật sản phẩm:", error);
-    res.status(500).json({
-      error: "Đã xảy ra lỗi khi cập nhật sản phẩm",
-      details: error.message,
-    });
+    await t.commit();
+    return res.json({ message: "Cập nhật thành công!" });
+  } catch (err) {
+    await t.rollback();
+    console.error("Lỗi cập nhật sản phẩm:", err);
+    return res.status(400).json({ error: err.message });
   }
 };
+
 
 exports.delete = async (req, res) => {
   const t = await sequelize.transaction();
   try {
     const productId = req.params.id;
 
-    // 1. Kiểm tra xem có biến thể nào của sản phẩm này đang có trong OrderItem không
-    const variationsInOrders = await ProductVariation.findAll({
-      where: { product_id: productId },
-      include: [
-        {
-          model: OrderItem,
-          as: "orderItems", // <-- Đảm bảo alias này khớp với association
-          attributes: ["id"],
-        },
-      ],
-      transaction: t,
+    // 1) ensure no variation in orders
+    const vars = await ProductVariation.findAll({
+      where:{ product_id: productId },
+      include:[{ model: OrderItem, as:'orderItems', attributes:['id'] }],
+      transaction: t
     });
-
-    const hasLinkedVariations = variationsInOrders.some(
-      (v) => v.orderItems && v.orderItems.length > 0
-    );
-
-    if (hasLinkedVariations) {
-      await t.rollback();
-      const linkedVariationDetails = variationsInOrders
-        .filter((v) => v.orderItems && v.orderItems.length > 0)
-        .map((v) => ({ id: v.id, name: v.name, value: v.value }));
-
-      return res.status(400).json({
-        error:
-          "Không thể xóa sản phẩm này. Một hoặc nhiều biến thể của nó đang tồn tại trong các đơn hàng đã đặt.",
-        details: linkedVariationDetails,
-      });
+    if (vars.some(v=>v.orderItems.length)) {
+      throw new Error("Có biến thể đang nằm trong đơn hàng, không thể xóa.");
     }
 
-    // Nếu không có biến thể nào liên quan đến đơn hàng, tiến hành xóa
-    await ProductImage.destroy({
-      where: { product_id: productId },
-      transaction: t,
-    });
-
-    await ProductVariation.destroy({
-      where: { product_id: productId },
-      transaction: t,
-    });
-
-    const deletedRowCount = await Product.destroy({
-      where: { id: productId },
-      transaction: t,
-    });
-
-    if (deletedRowCount === 0) {
-      await t.rollback();
-      return res
-        .status(404)
-        .json({ message: "Không tìm thấy sản phẩm để xóa." });
+    // 2) delete images, variations, product
+    const varIds = vars.map(v=>v.id);
+    if (varIds.length) {
+      await ProductImage.destroy({ where:{ variations_id: varIds }, transaction: t });
+      await ProductVariation.destroy({ where:{ id: varIds },       transaction: t });
     }
+    const deleted = await Product.destroy({ where:{ id: productId }, transaction: t });
+    if (!deleted) throw new Error("Không tìm thấy sản phẩm.");
 
     await t.commit();
-    res.json({
-      message: "Sản phẩm và các dữ liệu liên quan đã được xóa thành công!",
-    });
-  } catch (error) {
+    return res.json({ message: "Xóa sản phẩm thành công!" });
+
+  } catch (err) {
     await t.rollback();
-    console.error("Lỗi khi xóa sản phẩm:", error);
-    res.status(500).json({
-      error: "Đã xảy ra lỗi khi xóa sản phẩm.",
-      details: error.message,
-    });
+    console.error("Lỗi xóa sản phẩm:", err);
+    return res.status(400).json({ error: err.message });
   }
 };

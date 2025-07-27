@@ -1,9 +1,7 @@
-
 const sequelize = require('../../../models/database');
 const Order = require('../../../models/order');
 const OrderItem = require('../../../models/OrderItem');
 const ProductVariation = require('../../../models/productVariation');
-const Product = require('../../../models/product'); 
 
 exports.createOrder = async (req, res, next) => {
     if (!req.user || !req.user.id) {
@@ -44,36 +42,28 @@ exports.createOrder = async (req, res, next) => {
 
         const orderId = newOrder.id;
 
-       
         const orderItemsData = [];
         for (const item of items) {
-            let finalPrice = item.price; 
-            let variationIdToSave = item.variationId || null; 
+            let finalPrice = item.price;
+            let variationIdToSave = item.variationId || null;
 
-            
             if (variationIdToSave) {
                 const variation = await ProductVariation.findByPk(variationIdToSave);
                 if (variation) {
-                    finalPrice = variation.price; 
+                    finalPrice = variation.price;
                 } else {
                     console.warn(`Biến thể ID ${variationIdToSave} không tìm thấy trong DB. Đặt variation_id về null.`);
-                    variationIdToSave = null; 
+                    variationIdToSave = null;
                 }
-            } else { 
-                const product = await Product.findByPk(item.productId);
-                if (product) {
-                    finalPrice = product.price; 
-                } else {
-                    console.warn(`Sản phẩm ID ${item.productId} không tìm thấy trong DB.`);
-                }
+            } else {
+                console.warn(`Không có variation_id cho sản phẩm ${item.productId}.`);
             }
 
             orderItemsData.push({
                 order_id: orderId,
-                product_id: item.productId,
-                variation_id: variationIdToSave, 
+                variation_id: variationIdToSave,  // Đặt sản phẩm là variation_id
                 quantity: item.quantity,
-                price: finalPrice, 
+                price: finalPrice,
             });
         }
 

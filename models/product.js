@@ -1,29 +1,39 @@
-const Sequelize = require('sequelize');
-const database = require('./database');
+const { DataTypes } = require('sequelize');
+const database = require('./database'); // file config Sequelize của bạn
 
-
-const Product = database.define('products', {
-    id: {
-        type: Sequelize.INTEGER,
-        autoIncrement: true,
-        allowNull: false,
-        primaryKey: true
-    },
-    name: Sequelize.STRING,
-    images: Sequelize.STRING,
-    description: Sequelize.TEXT,
-    short_description: Sequelize.TEXT,
-    price: Sequelize.INTEGER,
-    discount_price: Sequelize.INTEGER,
-    view: Sequelize.INTEGER,
-    status: Sequelize.TINYINT,
-    category_id: Sequelize.INTEGER,
-    quantity: Sequelize.STRING,
-    minStock: Sequelize.STRING,
-    categoryparent_id: Sequelize.INTEGER
+const Product = database.define('Product', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true,
+  },
+  name: {
+    type: DataTypes.STRING(255),
+    allowNull: true,
+  },
+  description: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  status: {
+    type: DataTypes.TINYINT,
+    allowNull: true,
+  },
+  category_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    // nếu bạn có bảng categories, có thể thêm:
+    // references: { model: 'categories', key: 'id' }
+  },
+  categoryparent_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    // nếu bạn có bảng categoryparents, có thể thêm:
+    // references: { model: 'categoryparents', key: 'id' }
+  },
 }, {
-    timestamps: true
+  tableName: 'products',
+  timestamps: true,       // Sequelize sẽ tự quản createdAt / updatedAt
 });
-
 
 module.exports = Product;

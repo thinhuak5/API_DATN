@@ -1,9 +1,8 @@
+// controllers/orderController.js
 const Order = require("../../../models/order");
 const OrderItem = require("../../../models/OrderItem");
-const Product = require("../../../models/product");
 const ProductVariation = require("../../../models/productVariation");
 const ProductImage = require("../../../models/productImage");
-const database = require("../../../models/database");
 
 exports.getOrderHistory = async (req, res, next) => {
   if (!req.user || !req.user.id) {
@@ -20,9 +19,9 @@ exports.getOrderHistory = async (req, res, next) => {
           as: "items",
           include: [
             {
-              model: Product,
-              as: "product",
-              attributes: ["id", "name"], // Loại bỏ 'images', chỉ lấy các trường cần thiết
+              model: ProductVariation,
+              as: "variation", // Đảm bảo dùng variation nếu thay đổi ở models
+              attributes: ["id", "name", "value", "price"],
               include: [
                 {
                   model: ProductImage,
@@ -31,11 +30,6 @@ exports.getOrderHistory = async (req, res, next) => {
                   limit: 1, // Chỉ lấy ảnh đầu tiên
                 },
               ],
-            },
-            {
-              model: ProductVariation,
-              as: "selectedVariation",
-              attributes: ["id", "name", "value", "price"],
             },
           ],
         },
@@ -49,21 +43,21 @@ exports.getOrderHistory = async (req, res, next) => {
       orderJSON.items = orderJSON.items.map((item) => {
         // Lấy image_url từ productImages (Cloudinary URL)
         if (
-          item.product &&
-          item.product.productImages &&
-          item.product.productImages.length > 0
+          item.variation &&
+          item.variation.productImages &&
+          item.variation.productImages.length > 0
         ) {
-          item.product.image_url = item.product.productImages[0].image_url;
-          delete item.product.productImages; // Xóa productImages để giảm payload
+          item.variation.image_url = item.variation.productImages[0].image_url;
+          delete item.variation.productImages; // Xóa productImages để giảm payload
         } else {
-          item.product.image_url = null; // Hoặc trả về URL ảnh mặc định nếu cần
+          item.variation.image_url = null; // Hoặc trả về URL ảnh mặc định nếu cần
         }
         return item;
       });
 
       // Tính tổng tiền
       orderJSON.totalAmount = orderJSON.items.reduce((sum, item) => {
-        const price = Number(item.selectedVariation?.price || item.price) || 0;
+        const price = Number(item.variation?.price || item.price) || 0;
         const quantity = Number(item.quantity) || 0;
         return sum + price * quantity;
       }, 0);
@@ -76,7 +70,7 @@ exports.getOrderHistory = async (req, res, next) => {
       console.log(`Order ID: ${order.id}, Total Amount: ${order.totalAmount}`);
       order.items.forEach((item) => {
         console.log(
-          `  Product: ${item.product.name}, Image URL: ${item.product.image_url}`
+          `  Product Variation: ${item.variation.name}, Image URL: ${item.variation.image_url}`
         );
       });
     });
@@ -90,6 +84,8 @@ exports.getOrderHistory = async (req, res, next) => {
     });
   }
 };
+
+
 
 exports.cancelOrder = async (req, res, next) => {
   if (!req.user || !req.user.id) {
@@ -153,3 +149,4 @@ exports.cancelOrder = async (req, res, next) => {
     });
   }
 };
+
