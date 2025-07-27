@@ -21,10 +21,18 @@ const DiscountController = require('../controllers/api/admin/discountController'
 const {deletePaidCartItems} = require("../controllers/api/client/cartController");
 
 const ContactController = require('../controllers/api/client/contactController');
+
+
+const statisticsController = require('../controllers/api/admin/statisticsController');
+
 /*const AuthController = require('../controllers/client/authController'); */
 
 /* router.post('/register',upload.single('avatar'), AuthController.register ); */
 /* -----API Admin----- */
+
+
+// Route thống kê tổng quan
+router.get('/statistics', statisticsController.getStatistics);
 
 // Danh mục admin
 router.get('/categories/list', CategoryController.getAll);
