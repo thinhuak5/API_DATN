@@ -11,11 +11,9 @@ const app = express();
 
 const database = require('./models/database');
 const Category = require('./models/category');
-const CategoryParent = require('./models/categoryparent');
 const Product = require('./models/product');
 
-const models = {Category, CategoryParent, Product};
-
+const models = {Category, Product};
 Object.values(models).forEach(model => {
     if (model.associate) {
         model.associate(models);

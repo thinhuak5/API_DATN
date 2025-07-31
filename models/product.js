@@ -20,7 +20,6 @@ const Product = database.define('products', {
     category_id: Sequelize.INTEGER,
     quantity: Sequelize.STRING,
     minStock: Sequelize.STRING,
-    categoryparent_id: Sequelize.INTEGER
 }, {
     timestamps: true
 });
