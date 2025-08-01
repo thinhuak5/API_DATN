@@ -18,7 +18,6 @@ const {
   createPaymentQr,
   checkoutVNpay,
 } = require("../controllers/api/client/vnpayController");
-const categoryParentController = require("../controllers/api/admin/categoryparentController");
 const momoController = require("../controllers/api/client/momoController");
 const ClientReviewController = require("../controllers/api/client/reviewController");
 const AdminReviewController = require("../controllers/api/admin/reviewAdminController");
@@ -38,42 +37,16 @@ const ContactController = require("../controllers/api/client/contactController")
 // Route thống kê tổng quan
 router.get('/statistics', statisticsController.getStatistics);
 
-// Danh mục admin
+router.get('/statistics/weekly-revenue', statisticsController.getWeeklyRevenue);
 router.get("/categories/list", CategoryController.getAll);
-router.get(
-  "/categories/by-parent/:categoryparent_id",
-  CategoryController.getByParent
-);
-router.get("/categories/:id", CategoryController.detail);
-router.post(
-  "/categories/add",
-  upload.single("images"),
-  CategoryController.create
-); //Thêm sản danh mục có hình ảnh
-router.put(
-  "/categories/:id",
-  upload.single("images"),
-  CategoryController.update
-); //Cập nhật danh mục có hình ảnh
-router.delete("/categories/:id", CategoryController.delete);
+router.get('/categories/list', CategoryController.getAll); // Lấy tất cả danh mục (cha + con)
+router.get('/categories/parents', CategoryController.getAllParents); // Lấy tất cả danh mục cha (parent_id = NULL)
+router.get('/categories/by-parent/:parent_id', CategoryController.getByParent); // Lấy tất cả danh mục con của 1 cha
+router.get('/categories/:id', CategoryController.detail); // Lấy chi tiết danh mục
+router.post('/categories/add', upload.single('images'), CategoryController.create); // Thêm mới danh mục (cha hoặc con)
+router.put('/categories/:id', upload.single('images'), CategoryController.update); // Cập nhật danh mục
+router.delete('/categories/:id', CategoryController.delete); // Xóa danh mục
 
-router.get("/categoryparents", categoryParentController.getAll);
-router.get("/categoryparents/:id", categoryParentController.detail);
-router.post(
-  "/categoryparents/add",
-  upload.single("image"),
-  categoryParentController.create
-);
-router.put(
-  "/categoryparents/:id",
-  upload.single("image"),
-  categoryParentController.update
-);
-router.delete("/categoryparents/:id", categoryParentController.delete);
-
-// router.post('/categories',  CategoryController.create);  // Thêm danh mục không hình ảnh
-// router.put('/categories/:id',  CategoryController.update); // sửa danh mục không hình ảnh
-// router.patch('/categories/:id',  CategoryController.update);
 
 // Sản Phẩm Admin
 router.get("/products/list", ProductController.getAll);

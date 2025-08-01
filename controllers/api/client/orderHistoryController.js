@@ -3,7 +3,7 @@ const Order = require("../../../models/order");
 const OrderItem = require("../../../models/OrderItem");
 const ProductVariation = require("../../../models/productVariation");
 const ProductImage = require("../../../models/productImage");
-
+const database = require("../../../models/database");
 exports.getOrderHistory = async (req, res, next) => {
   if (!req.user || !req.user.id) {
     return res.status(401).json({ message: "Yêu cầu không được xác thực." });

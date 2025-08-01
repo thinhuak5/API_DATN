@@ -25,12 +25,6 @@ const Product = database.define('Product', {
     // nếu bạn có bảng categories, có thể thêm:
     // references: { model: 'categories', key: 'id' }
   },
-  categoryparent_id: {
-    type: DataTypes.INTEGER,
-    allowNull: true,
-    // nếu bạn có bảng categoryparents, có thể thêm:
-    // references: { model: 'categoryparents', key: 'id' }
-  },
 }, {
   tableName: 'products',
   timestamps: true,       // Sequelize sẽ tự quản createdAt / updatedAt
