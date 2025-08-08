@@ -1,4 +1,3 @@
-// controllers/api/admin/productController.js
 
 const { Product, ProductVariation, ProductImage, OrderItem } = require("../../../models");
 const sequelize = require("../../../models/database");
@@ -117,7 +116,6 @@ exports.create = async (req, res) => {
 };
 
 
-// ⚡️UPDATE — ĐÃ THÊM xử lý XÓA BIẾN THỂ khi cập nhật
 exports.update = async (req, res) => {
   const t = await sequelize.transaction();
   try {
