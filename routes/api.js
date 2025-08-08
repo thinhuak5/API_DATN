@@ -37,7 +37,8 @@ const ContactController = require("../controllers/api/client/contactController")
 // Route thống kê tổng quan
 router.get('/statistics', statisticsController.getStatistics);
 
-router.get('/statistics/weekly-revenue', statisticsController.getWeeklyRevenue);
+router.get('/statistics/revenue', statisticsController.getRevenueStatistics);
+
 router.get("/categories/list", CategoryController.getAll);
 router.get('/categories/list', CategoryController.getAll); // Lấy tất cả danh mục (cha + con)
 router.get('/categories/parents', CategoryController.getAllParents); // Lấy tất cả danh mục cha (parent_id = NULL)
