@@ -7,7 +7,7 @@ exports.getAll = async (req, res) => {
     const discounts = await Discount.findAll();
     res.json(discounts);
   } catch (error) {
-    res.status(500).json({ error: 'Lỗi server khi lấy danh sách mã giảm giá' });
+    res.status(500).json({ error:error });
   }
 };
 
@@ -62,22 +62,78 @@ exports.delete = async (req, res) => {
 exports.check = async (req, res) => {
   try {
     const { code, orderValue } = req.body;
+    console.log('Checking discount code:', code, 'for order value:', orderValue);
+    
     const now = new Date();
+    console.log('Current date:', now);
+    
+    // Tìm mã giảm giá không có điều kiện ngày để debug
+    const allDiscounts = await Discount.findAll({
+      where: {
+        code,
+      }
+    });
+    
+    console.log('All matching discounts by code:', allDiscounts.map(d => ({
+      id: d.id,
+      code: d.code,
+      status: d.status,
+      start_date: d.start_date,
+      end_date: d.end_date,
+      quantity: d.quantity,
+      discount_type: d.discount_type,
+      discount_value: d.discount_value
+    })));
+    
+    // Tìm mã giảm giá với đầy đủ điều kiện
     const discount = await Discount.findOne({
       where: {
         code,
         status: true,
-        start_date: { [Op.lte]: now },
-        end_date: { [Op.gte]: now },
+        [Op.and]: [
+          {
+            [Op.or]: [
+              { start_date: null },
+              { start_date: { [Op.lte]: now } }
+            ]
+          },
+          {
+            [Op.or]: [
+              { end_date: null },
+              { end_date: { [Op.gte]: now } }
+            ]
+          }
+        ],
         quantity: { [Op.gt]: 0 },
       },
     });
-    if (!discount) return res.status(404).json({ error: 'Mã giảm giá không hợp lệ hoặc đã hết hạn' });
-    if (discount.min_order_value && orderValue < discount.min_order_value) {
-      return res.status(400).json({ error: `Đơn hàng phải tối thiểu ${discount.min_order_value}` });
+    
+    console.log('Found valid discount:', discount ? discount.toJSON() : 'None');
+    
+    if (!discount) {
+      return res.status(404).json({ error: 'Mã giảm giá không hợp lệ hoặc đã hết hạn' });
     }
-    res.json(discount);
+    
+    if (discount.min_order_value && orderValue < discount.min_order_value) {
+      console.log(`Order value ${orderValue} is less than minimum required ${discount.min_order_value}`);
+      return res.status(400).json({ error: `Đơn hàng phải tối thiểu ${discount.min_order_value.toLocaleString()} VNĐ` });
+    }
+    
+    // Đảm bảo trả về đầy đủ thông tin mã giảm giá
+    const discountResponse = {
+      id: discount.id,
+      code: discount.code,
+      description: discount.description,
+      discount_type: discount.discount_type,
+      discount_value: discount.discount_value,
+      min_order_value: discount.min_order_value,
+      max_discount_value: discount.max_discount_value
+    };
+    
+    console.log('Returning discount data:', discountResponse);
+    res.json(discountResponse);
   } catch (error) {
+    console.error('Error checking discount:', error);
     res.status(500).json({ error: 'Lỗi server khi kiểm tra mã giảm giá' });
   }
 }; 
