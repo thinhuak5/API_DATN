@@ -37,8 +37,7 @@ const ContactController = require("../controllers/api/client/contactController")
 // Route thống kê tổng quan
 router.get("/statistics", statisticsController.getStatistics);
 
-router.get("/statistics/revenue", statisticsController.getRevenueStatistics);
-
+router.get('/statistics/weekly-revenue', statisticsController.getWeeklyRevenue);
 router.get("/categories/list", CategoryController.getAll);
 router.get("/categories/list", CategoryController.getAll); // Lấy tất cả danh mục (cha + con)
 router.get("/categories/parents", CategoryController.getAllParents); // Lấy tất cả danh mục cha (parent_id = NULL)
@@ -87,12 +86,10 @@ router.delete("/products/:id", ProductController.delete);
 
 // Sản Phẩm Admin
 // router.post('/register', UserController.register);
-router.post("/register", upload.single("avatar"), UserController.register);
-router.post("/login", UserController.login);
-router.post("/login-google", UserController.loginGoogle);
-// quên mật khẩu
-router.post("/forgot-password", UserController.forgotPassword);
-router.post("/reset-password", UserController.resetPassword);
+router.post('/register', upload.single('avatar'), UserController.register);
+router.post('/login', UserController.login);
+router.post('/login-google', UserController.loginGoogle);
+
 // Sản Phẩm Admin
 // router.post('/register', UserController.register);
 // router.post('/login', UserController.login);
@@ -111,19 +108,20 @@ router.put("/users/:id", upload.single("avatar"), UserController.update);
 // Xóa user
 router.delete("/users/:id", UserController.delete);
 
-// // bình luận
-router.get("/comments", CommentController.getAll);
-router.get("/comments/:id", CommentController.detail);
-router.post("/comments", CommentController.create);
-router.put("/comments/:id", CommentController.update);
-router.delete("/comments/:id", CommentController.delete);
+// // bình luận 
+router.get('/comments', CommentController.getAll);
+router.get('/comments/:id', CommentController.detail);
+router.post('/comments', CommentController.create);
+router.put('/comments/:id', CommentController.update);
+router.delete('/comments/:id', CommentController.delete);
 
-// oder
-router.get("/oders", OrderController.getAll);
-router.get("/oders/:id", OrderController.detail);
-router.put("/oders/:id", OrderController.update);
-router.post("/oders", OrderController.create);
-router.delete("/oders/:id", OrderController.delete);
+// oder 
+router.get('/oders', OrderController.getAll);
+router.get('/oders/:id', OrderController.detail);
+router.put('/oders/:id', OrderController.update);
+router.post('/oders', OrderController.create);
+router.delete('/oders/:id', OrderController.delete);
+
 
 // thêm sản phẩm vào giỏ hàng
 router.post(
@@ -153,11 +151,8 @@ router.delete(
 
 // Xóa các MỤC GIỎ HÀNG đã chọn sau khi đặt hàng
 // Frontend sẽ gửi { selectedCartItemIds: [...] } trong body
-router.post(
-  "/cart/clear-selected-items",
-  authenticateToken,
-  CartController.clearCart
-);
+router.post('/cart/clear-selected-items', authenticateToken, CartController.clearCart); 
+
 
 // paymennt VNpay
 router.post("/create-qr", createPaymentQr);
@@ -232,7 +227,7 @@ router.get("/admin/contact", ContactController.getAll);
 router.get("/admin/contact/:id", ContactController.getOne);
 
 // Trả lời phản hồi (admin cập nhật reply)
-router.post("/admin/contact/reply/:id", ContactController.reply);
+router.post('/admin/contact/reply/:id', ContactController.reply);
 
 // --- ADMIN ROUTES CHO QUẢN LÝ ĐÁNH GIÁ ---
 // Prefix /admin/reviews
