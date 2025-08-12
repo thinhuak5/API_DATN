@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const axios = require('axios');
+const TempOrder = require('../../../models/tempOrder');
 
 const createMomoPayment = async (req, res) => {
     try {
@@ -8,7 +9,19 @@ const createMomoPayment = async (req, res) => {
         const secretkey = "K951B6PE1waDMi640xX08PD3vg6EkVlz";
 
         // Nhận từ frontend
-        let {amount, orderId} = req.body;
+        let {
+            amount, 
+            orderId, 
+            user_id, 
+            name, 
+            phone, 
+            address, 
+            payment_id, 
+            items,
+            discount_id,
+            discount_amount,
+            total_amount
+        } = req.body;
 
         if (!amount || !orderId) {
             return res.status(400).json({message: "Thiếu thông tin 'amount' hoặc 'orderId'."});
@@ -18,10 +31,25 @@ const createMomoPayment = async (req, res) => {
         amount = amount.toString();
         orderId = orderId.toString();
 
+        // Lưu thông tin đơn hàng tạm thời
+        await TempOrder.create({
+            user_id,
+            name,
+            phone,
+            address,
+            payment_id,
+            items: JSON.stringify(items),
+            amount,
+            txn_ref: orderId,
+            discount_id: discount_id || null,
+            discount_amount: discount_amount || 0,
+            total_amount: total_amount || parseFloat(amount)
+        });
+
         const requestId = partnerCode + Date.now();
         const orderInfo = "Thanh Toán MoMo";
-        const redirectUrl = "https://momo.vn/return";
-        const ipnUrl = "https://callback.url/notify"; // URL nhận callback thanh toán
+        const redirectUrl = "http://localhost:3001/payment-result?provider=momo";
+        const ipnUrl = "http://localhost:3000/api/momo-callback"; // URL nhận callback thanh toán
         const requestType = "captureWallet";
         const extraData = ""; // có thể truyền userId hoặc info khác
 
