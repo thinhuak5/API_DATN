@@ -16,7 +16,7 @@ exports.getAll = async (req, res) => {
             {
               model: productVariationModel,
               as: "variation",
-              attributes: ["id", "name", "value", "price"],
+              attributes: ["id", "name", "price"],
               include: [
                 {
                   model: productImageModel,
@@ -73,7 +73,7 @@ exports.detail = async (req, res) => {
             {
               model: productVariationModel,
               as: "variation",
-              attributes: ["id", "name", "value", "price"],
+              attributes: ["id", "name", "price"],
               include: [
                 {
                   model: productImageModel,

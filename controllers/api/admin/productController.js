@@ -1,20 +1,27 @@
-
-const { Product, ProductVariation, ProductImage, OrderItem } = require("../../../models");
+// controllers/api/admin/productController.js
+const { Product, ProductVariation, ProductImage, ProductVariationSpec, OrderItem } = require("../../../models");
 const sequelize = require("../../../models/database");
-const cloudinary = require('cloudinary').v2;
+const cloudinary = require("cloudinary").v2;
 
 exports.getAll = async (req, res) => {
   try {
     const data = await Product.findAll({
-      include: [{
-        model: ProductVariation,
-        as: "variations",
-        include: [{
-          model: ProductImage,
-          as: "productImages",
-          attributes: ["id", "image_url", "variations_id"]
-        }]
-      }]
+      include: [
+        {
+          model: ProductVariation,
+          as: "variations",
+          include: [
+            { model: ProductImage, as: "productImages", attributes: ["id", "image_url", "variations_id"] },
+            { model: ProductVariationSpec, as: "specs", attributes: ["id", "label", "value", "sort_order"] },
+          ],
+        },
+      ],
+      order: [
+        ["id", "DESC"],
+        [{ model: ProductVariation, as: "variations" }, "id", "ASC"],
+        [{ model: ProductVariation, as: "variations" }, { model: ProductImage, as: "productImages" }, "id", "ASC"],
+        [{ model: ProductVariation, as: "variations" }, { model: ProductVariationSpec, as: "specs" }, "sort_order", "ASC"],
+      ],
     });
     return res.json(data);
   } catch (error) {
@@ -26,19 +33,22 @@ exports.getAll = async (req, res) => {
 exports.detail = async (req, res) => {
   try {
     const product = await Product.findByPk(req.params.id, {
-      include: [{
-        model: ProductVariation,
-        as: "variations",
-        include: [{
-          model: ProductImage,
-          as: "productImages",
-          attributes: ["id", "image_url", "variations_id"]
-        }]
-      }]
+      include: [
+        {
+          model: ProductVariation,
+          as: "variations",
+          include: [
+            { model: ProductImage, as: "productImages", attributes: ["id", "image_url", "variations_id"] },
+            { model: ProductVariationSpec, as: "specs", attributes: ["id", "label", "value", "sort_order"] },
+          ],
+        },
+      ],
+      order: [
+        [{ model: ProductVariation, as: "variations" }, "id", "ASC"],
+        [{ model: ProductVariation, as: "variations" }, { model: ProductVariationSpec, as: "specs" }, "sort_order", "ASC"],
+      ],
     });
-    if (!product) {
-      return res.status(404).json({ message: "Không tìm thấy sản phẩm." });
-    }
+    if (!product) return res.status(404).json({ message: "Không tìm thấy sản phẩm." });
     return res.json(product);
   } catch (error) {
     console.error("Lỗi khi lấy chi tiết sản phẩm:", error);
@@ -49,22 +59,26 @@ exports.detail = async (req, res) => {
 exports.create = async (req, res) => {
   const t = await sequelize.transaction();
   try {
-    const {
-      name, description, price, discount_price,
-      view, status, category_id, quantity, minStock, categoryparent_id,
-      variations  // JSON string
-    } = req.body;
+    const { name, description, price, discount_price, view, status, category_id, quantity, categoryparent_id, variations } = req.body;
 
     // 1) tạo product
-    const newProduct = await Product.create({
-      name, description, price, discount_price,
-      view: view || 0, status,
-      category_id, quantity: quantity || 0,
-      min_stock: minStock || 0, categoryparent_id
-    }, { transaction: t });
+    const newProduct = await Product.create(
+      {
+        name,
+        description,
+        price,
+        discount_price,
+        view: view || 0,
+        status,
+        category_id,
+        quantity: quantity || 0,
+        categoryparent_id,
+      },
+      { transaction: t }
+    );
 
-    // 2) parse metadata
-    const parsedVars = JSON.parse(variations);
+    // 2) parse variations
+    const parsedVars = JSON.parse(variations || "[]");
 
     // 3) nhóm file upload theo variation_idx
     const files = req.files || [];
@@ -79,42 +93,53 @@ exports.create = async (req, res) => {
       });
     }
 
-    // 4) tạo từng biến thể + ảnh đi kèm
+    // 4) tạo từng biến thể + ảnh + specs
     for (let i = 0; i < parsedVars.length; i++) {
       const v = parsedVars[i];
-      const createdVar = await ProductVariation.create({
-        product_id: newProduct.id,
-        name: v.name,
-        value: v.value,
-        price: v.price !== "" ? parseFloat(v.price) : null,
-        quantity: parseInt(v.quantity, 10) || 0,
-        min_stock: parseInt(v.min_stock ?? v.minStock ?? 0, 10) || 0,
-        type: v.type || "regular"
-      }, { transaction: t });
+      const createdVar = await ProductVariation.create(
+        {
+          product_id: newProduct.id,
+          name: v.name,
+          price: v.price !== "" ? parseFloat(v.price) : null,
+          quantity: parseInt(v.quantity, 10) || 0,
+          type: v.type || "regular",
+        },
+        { transaction: t }
+      );
 
+      // ảnh
       const bucket = filesMap[i] || [];
       if (bucket.length) {
-        const imgs = bucket.map(file => ({
+        const imgs = bucket.map((file) => ({
           variations_id: createdVar.id,
-          image_url: file.path
+          image_url: file.path,
         }));
         await ProductImage.bulkCreate(imgs, { transaction: t });
+      }
+
+      // specs
+      if (Array.isArray(v.specs) && v.specs.length) {
+        const specsPayload = v.specs.map((s) => ({
+          variation_id: createdVar.id,
+          label: s.label,
+          value: s.value,
+          sort_order: s.sort_order ?? 0,
+        }));
+        await ProductVariationSpec.bulkCreate(specsPayload, { transaction: t });
       }
     }
 
     await t.commit();
     return res.status(201).json({
-      message: "Tạo sản phẩm + biến thể + ảnh thành công!",
-      product: newProduct
+      message: "Tạo sản phẩm + biến thể + ảnh + specs thành công!",
+      product: newProduct,
     });
-
   } catch (err) {
     await t.rollback();
     console.error("Lỗi tạo sản phẩm:", err);
     return res.status(500).json({ error: err.message });
   }
 };
-
 
 exports.update = async (req, res) => {
   const t = await sequelize.transaction();
@@ -128,50 +153,44 @@ exports.update = async (req, res) => {
       status,
       category_id,
       quantity,
-      minStock,
       categoryparent_id,
       variations, // JSON string
       removedImages, // JSON string array of URLs
       removedVariationImages, // JSON string: { idx: [url1, url2] }
     } = req.body;
+
     const productId = req.params.id;
 
     // 1) Cập nhật thông tin sản phẩm
     const [updated] = await Product.update(
-        {
-          name,
-          description,
-          price,
-          discount_price,
-          view,
-          status,
-          category_id,
-          quantity,
-          min_stock: minStock,
-          categoryparent_id,
-        },
-        { where: { id: productId }, transaction: t }
+      {
+        name,
+        description,
+        price,
+        discount_price,
+        view,
+        status,
+        category_id,
+        quantity,
+        categoryparent_id,
+      },
+      { where: { id: productId }, transaction: t }
     );
     if (!updated) throw new Error("Không tìm thấy sản phẩm");
 
-    // 2) Xóa ảnh sản phẩm cũ đã được yêu cầu xóa
+    // 2) Xóa ảnh sản phẩm/biến thể theo URL (nếu có)
     if (removedImages) {
-      const toRemove = JSON.parse(removedImages);
+      const toRemove = JSON.parse(removedImages || "[]");
       if (Array.isArray(toRemove) && toRemove.length) {
         for (let url of toRemove) {
-          const publicId = url.split('/').pop().split('.')[0];
-          await cloudinary.uploader.destroy(publicId).catch(()=>{});
+          const publicId = url.split("/").pop().split(".")[0];
+          await cloudinary.uploader.destroy(publicId).catch(() => {});
         }
-        await ProductImage.destroy({
-          where: {
-            image_url: toRemove,
-          },
-          transaction: t,
-        });
+        await ProductImage.destroy({ where: { image_url: toRemove }, transaction: t });
       }
     }
 
-    // 3) Nhóm file mới upload theo biến thể (theo index biến thể trong mảng)
+    // nhóm file mới theo biến thể
     const files = req.files || [];
     const idxs = req.body.variation_idx || [];
     const filesMap = {};
@@ -184,61 +203,55 @@ exports.update = async (req, res) => {
       });
     }
 
-    // 4) Lấy biến thể hiện có trên DB
+    // 3) Biến thể hiện có
     const oldVars = await ProductVariation.findAll({ where: { product_id: productId }, transaction: t });
-    const oldVarIds = oldVars.map(v => v.id);
+    const oldVarIds = oldVars.map((v) => v.id);
 
-    // 5) Parse biến thể gửi lên từ FE
+    // 4) Parse biến thể mới
     const parsedVars = JSON.parse(variations || "[]");
-    const newVarIds = parsedVars.filter(v => v.id).map(v => v.id);
+    const newVarIds = parsedVars.filter((v) => v.id).map((v) => v.id);
 
-    // 6) Xác định biến thể bị xóa (id cũ mà không còn trong newVarIds)
-    const toDeleteVarIds = oldVarIds.filter(id => !newVarIds.includes(id));
+    // 5) Xóa biến thể bị bỏ
+    const toDeleteVarIds = oldVarIds.filter((id) => !newVarIds.includes(id));
     if (toDeleteVarIds.length) {
-      // Xóa ảnh của biến thể bị xóa
       await ProductImage.destroy({ where: { variations_id: toDeleteVarIds }, transaction: t });
-      // Xóa biến thể
+      await ProductVariationSpec.destroy({ where: { variation_id: toDeleteVarIds }, transaction: t });
       await ProductVariation.destroy({ where: { id: toDeleteVarIds }, transaction: t });
     }
 
-    // 7) Xử lý xóa ảnh biến thể (được chỉ định cụ thể)
+    // 6) Xóa ảnh biến thể theo chỉ định
     const removedVarImgsMap = JSON.parse(removedVariationImages || "{}");
 
-    // 8) Cập nhật hoặc tạo mới biến thể, thêm ảnh nếu có
+    // 7) Upsert biến thể + ảnh + specs
     for (let i = 0; i < parsedVars.length; i++) {
       const v = parsedVars[i];
+
       if (v.id) {
-        // Cập nhật biến thể cũ
+        // update
         await ProductVariation.update(
-            {
-              name: v.name,
-              value: v.value,
-              price: v.price !== "" ? parseFloat(v.price) : null,
-              quantity: parseInt(v.quantity, 10) || 0,
-              min_stock: parseInt(v.min_stock ?? v.minStock ?? 0, 10) || 0,
-              type: v.type || "regular",
-            },
-            {
-              where: { id: v.id, product_id: productId },
-              transaction: t,
-            }
+          {
+            name: v.name,
+            price: v.price !== "" ? parseFloat(v.price) : null,
+            quantity: parseInt(v.quantity, 10) || 0,
+            type: v.type || "regular",
+          },
+          { where: { id: v.id, product_id: productId }, transaction: t }
         );
-        // Xóa ảnh biến thể nếu có yêu cầu xóa
+
+        // xóa ảnh chỉ định
         const toRem = removedVarImgsMap[i] || [];
         if (toRem.length) {
           for (let url of toRem) {
-            const publicId = url.split('/').pop().split('.')[0];
-            await cloudinary.uploader.destroy(publicId).catch(()=>{});
+            const publicId = url.split("/").pop().split(".")[0];
+            await cloudinary.uploader.destroy(publicId).catch(() => {});
           }
           await ProductImage.destroy({
-            where: {
-              variations_id: v.id,
-              image_url: toRem,
-            },
+            where: { variations_id: v.id, image_url: toRem },
             transaction: t,
           });
         }
-        // Thêm ảnh mới cho biến thể
+
+        // thêm ảnh mới
         const bucket = filesMap[i] || [];
         if (bucket.length) {
           const imgs = bucket.map((f) => ({
@@ -247,18 +260,32 @@ exports.update = async (req, res) => {
           }));
           await ProductImage.bulkCreate(imgs, { transaction: t });
         }
+
+        // specs: xóa hết rồi tạo lại (đơn giản, an toàn)
+        await ProductVariationSpec.destroy({ where: { variation_id: v.id }, transaction: t });
+        if (Array.isArray(v.specs) && v.specs.length) {
+          const specsPayload = v.specs.map((s) => ({
+            variation_id: v.id,
+            label: s.label,
+            value: s.value,
+            sort_order: s.sort_order ?? 0,
+          }));
+          await ProductVariationSpec.bulkCreate(specsPayload, { transaction: t });
+        }
       } else {
-        // Tạo mới biến thể
-        const createdVar = await ProductVariation.create({
-          product_id: productId,
-          name: v.name,
-          value: v.value,
-          price: v.price !== "" ? parseFloat(v.price) : null,
-          quantity: parseInt(v.quantity, 10) || 0,
-          min_stock: parseInt(v.min_stock ?? v.minStock ?? 0, 10) || 0,
-          type: v.type || "regular",
-        }, { transaction: t });
-        // Thêm ảnh mới cho biến thể
+        // create
+        const createdVar = await ProductVariation.create(
+          {
+            product_id: productId,
+            name: v.name,
+            price: v.price !== "" ? parseFloat(v.price) : null,
+            quantity: parseInt(v.quantity, 10) || 0,
+            type: v.type || "regular",
+          },
+          { transaction: t }
+        );
+
+        // ảnh mới
         const bucket = filesMap[i] || [];
         if (bucket.length) {
           const imgs = bucket.map((f) => ({
@@ -266,6 +293,17 @@ exports.update = async (req, res) => {
             image_url: f.path,
           }));
           await ProductImage.bulkCreate(imgs, { transaction: t });
+        }
+
+        // specs
+        if (Array.isArray(v.specs) && v.specs.length) {
+          const specsPayload = v.specs.map((s) => ({
+            variation_id: createdVar.id,
+            label: s.label,
+            value: s.value,
+            sort_order: s.sort_order ?? 0,
+          }));
+          await ProductVariationSpec.bulkCreate(specsPayload, { transaction: t });
         }
       }
     }
@@ -284,20 +322,19 @@ exports.delete = async (req, res) => {
   try {
     const productId = req.params.id;
 
-    // 1) ensure no variation in orders
     const vars = await ProductVariation.findAll({
       where: { product_id: productId },
-      include: [{ model: OrderItem, as: 'orderItems', attributes: ['id'] }],
-      transaction: t
+      include: [{ model: OrderItem, as: "orderItems", attributes: ["id"] }],
+      transaction: t,
     });
-    if (vars.some(v => v.orderItems.length)) {
+    if (vars.some((v) => v.orderItems.length)) {
       throw new Error("Có biến thể đang nằm trong đơn hàng, không thể xóa.");
     }
 
-    // 2) delete images, variations, product
-    const varIds = vars.map(v => v.id);
+    const varIds = vars.map((v) => v.id);
     if (varIds.length) {
       await ProductImage.destroy({ where: { variations_id: varIds }, transaction: t });
+      await ProductVariationSpec.destroy({ where: { variation_id: varIds }, transaction: t });
       await ProductVariation.destroy({ where: { id: varIds }, transaction: t });
     }
     const deleted = await Product.destroy({ where: { id: productId }, transaction: t });
@@ -305,7 +342,6 @@ exports.delete = async (req, res) => {
 
     await t.commit();
     return res.json({ message: "Xóa sản phẩm thành công!" });
-
   } catch (err) {
     await t.rollback();
     console.error("Lỗi xóa sản phẩm:", err);

@@ -83,7 +83,7 @@ exports.getCart = async (req, res) => {
         {
           model: ProductVariation,
           as: "variation",
-          attributes: ["id", "name", "value", "price"],
+          attributes: ["id", "name", "price"],
           include: [
             {
               model: ProductImage,

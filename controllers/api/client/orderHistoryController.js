@@ -21,7 +21,7 @@ exports.getOrderHistory = async (req, res, next) => {
             {
               model: ProductVariation,
               as: "variation", // Đảm bảo dùng variation nếu thay đổi ở models
-              attributes: ["id", "name", "value", "price"],
+              attributes: ["id", "name", "price"],
               include: [
                 {
                   model: ProductImage,

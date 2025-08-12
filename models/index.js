@@ -9,6 +9,8 @@ const Cart = require("./carts");
 const Order = require("./order");
 const OrderItem = require("./OrderItem");
 
+// NEW
+const ProductVariationSpec = require("./productVariationSpec");
 // Product ↔ ProductVariation
 Product.hasMany(ProductVariation, {
   foreignKey: "product_id",
@@ -40,13 +42,24 @@ Cart.belongsTo(ProductVariation, {
 Order.hasMany(OrderItem, { foreignKey: "order_id", as: "orderItems" });
 OrderItem.belongsTo(Order, { foreignKey: "order_id", as: "order" });
 
-
 // ProductVariation ↔ OrderItem
 ProductVariation.hasMany(OrderItem, {
   foreignKey: "variation_id",
   as: "orderItems",
 });
 OrderItem.belongsTo(ProductVariation, {
+  foreignKey: "variation_id",
+  as: "variation",
+});
+
+// NEW: Product ↔ ProductSpec
+ProductVariation.hasMany(ProductVariationSpec, {
+  foreignKey: "variation_id",
+  as: "specs",
+  onDelete: "CASCADE",
+  onUpdate: "CASCADE",
+});
+ProductVariationSpec.belongsTo(ProductVariation, {
   foreignKey: "variation_id",
   as: "variation",
 });
@@ -59,4 +72,6 @@ module.exports = {
   Cart,
   Order,
   OrderItem,
+  // NEW
+  ProductVariationSpec,
 };

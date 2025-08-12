@@ -36,7 +36,7 @@ exports.getAllReviews = async (req, res) => {
         {
           model: ProductVariation,
           as: 'variation',
-          attributes: ['id','name','value','price'],
+          attributes: ['id','name','price'],
           required: true
         },
         {
@@ -78,7 +78,7 @@ exports.getReviewDetails = async (req, res) => {
         {
           model: ProductVariation,
           as: 'variation',
-          attributes: ['id','name','value','price']
+          attributes: ['id','name','price']
         },
         { model: ReviewImage, as: 'images', attributes: ['id','image_url'] }
       ]

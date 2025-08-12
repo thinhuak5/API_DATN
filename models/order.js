@@ -19,7 +19,6 @@ const Order = database.define('orders',
         user_id: Sequelize.INTEGER,
         address: Sequelize.STRING,
         cancellation_reason: Sequelize.STRING, // Lý do hủy đơn hàng
-        txn_ref: Sequelize.STRING,
         discount_id: Sequelize.INTEGER, // ID của mã giảm giá được áp dụng
         discount_amount: Sequelize.FLOAT, // Số tiền giảm giá
         total_amount: Sequelize.FLOAT, // Tổng tiền sau khi áp dụng giảm giá

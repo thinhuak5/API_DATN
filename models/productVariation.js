@@ -19,10 +19,6 @@ const ProductVariation = database.define('ProductVariation', {
     type: DataTypes.STRING(100),
     allowNull: false,
   },
-  value: {
-    type: DataTypes.STRING(100),
-    allowNull: false,
-  },
   price: {
     type: DataTypes.DECIMAL(10,2),
     allowNull: true,
@@ -32,11 +28,7 @@ const ProductVariation = database.define('ProductVariation', {
     allowNull: false,
     defaultValue: 0,
   },
-  min_stock: {
-    type: DataTypes.INTEGER,
-    allowNull: false,
-    defaultValue: 0,
-  },
+
 }, {
   tableName: 'product_variations',
   timestamps: true,
