@@ -19,7 +19,7 @@ const createPaymentQr = async (req, res) => {
     } = req.body;
 
     // Tạo vnp_TxnRef nếu không có
-    const txnRef = vnp_TxnRef || `ORDER_${Date.now()}`;
+    const txnRef = vnp_TxnRef || `${Date.now()}`;
 
     // Kiểm tra thiếu thông tin
     if (!user_id || !name || !phone || !address || !payment_id || !items || items.length === 0 || vnp_Amount == null) {
