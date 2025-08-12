@@ -18,7 +18,6 @@ const User = database.define('users', {
     avatar: Sequelize.STRING,
     status: Sequelize.TINYINT,
     role: Sequelize.TINYINT,
-    address: Sequelize.STRING,
     resetToken: {
         type: Sequelize.STRING,
         allowNull: true

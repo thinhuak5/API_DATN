@@ -7,6 +7,7 @@ const UserController = require("../controllers/api/admin/userController");
 const CommentController = require("../controllers/api/admin/commentController");
 const OrderController = require("../controllers/api/admin/orderController");
 const CartController = require("../controllers/api/client/cartController");
+const AddressController = require("../controllers/api/client/addressController");
 const ClientCheckoutController = require("../controllers/api/client/checkoutController"); // Controller checkout mới
 const {
   authenticateToken,
@@ -26,27 +27,47 @@ const DiscountController = require("../controllers/api/admin/discountController"
 const {
   deletePaidCartItems,
 } = require("../controllers/api/client/cartController");
-const statisticsController = require('../controllers/api/admin/statisticsController');
+const statisticsController = require("../controllers/api/admin/statisticsController");
 const ContactController = require("../controllers/api/client/contactController");
 /*const AuthController = require('../controllers/client/authController'); */
 
 /* router.post('/register',upload.single('avatar'), AuthController.register ); */
 /* -----API Admin----- */
 
-
 // Route thống kê tổng quan
-router.get('/statistics', statisticsController.getStatistics);
+router.get("/statistics", statisticsController.getStatistics);
 
-router.get('/statistics/revenue', statisticsController.getRevenueStatistics);
+router.get("/statistics/revenue", statisticsController.getRevenueStatistics);
 
 router.get("/categories/list", CategoryController.getAll);
-router.get('/categories/list', CategoryController.getAll); // Lấy tất cả danh mục (cha + con)
-router.get('/categories/parents', CategoryController.getAllParents); // Lấy tất cả danh mục cha (parent_id = NULL)
-router.get('/categories/by-parent/:parent_id', CategoryController.getByParent); // Lấy tất cả danh mục con của 1 cha
-router.get('/categories/:id', CategoryController.detail); // Lấy chi tiết danh mục
-router.post('/categories/add', upload.single('images'), CategoryController.create); // Thêm mới danh mục (cha hoặc con)
-router.put('/categories/:id', upload.single('images'), CategoryController.update); // Cập nhật danh mục
-router.delete('/categories/:id', CategoryController.delete); // Xóa danh mục
+router.get("/categories/list", CategoryController.getAll); // Lấy tất cả danh mục (cha + con)
+router.get("/categories/parents", CategoryController.getAllParents); // Lấy tất cả danh mục cha (parent_id = NULL)
+router.get("/categories/by-parent/:parent_id", CategoryController.getByParent); // Lấy tất cả danh mục con của 1 cha
+router.get("/categories/:id", CategoryController.detail); // Lấy chi tiết danh mục
+router.post(
+  "/categories/add",
+  upload.single("images"),
+  CategoryController.create
+); // Thêm mới danh mục (cha hoặc con)
+router.put(
+  "/categories/:id",
+  upload.single("images"),
+  CategoryController.update
+); // Cập nhật danh mục
+router.delete("/categories/:id", CategoryController.delete); // Xóa danh mục
+
+// địa chỉ
+// routes/address.routes.js
+
+// dùng userId param hoặc `/me` tuỳ middleware auth của bạn
+// routes/api.js
+// ĐỊA CHỈ (chỉ bỏ /api ở đầu path, giữ middleware auth)
+router.get ("/users/:userId/addresses",                authenticateToken, AddressController.getMyAddresses);
+router.post("/users/:userId/addresses",                authenticateToken, AddressController.createAddress);
+router.put ("/users/:userId/addresses/:id",            authenticateToken, AddressController.updateAddress);
+router.delete("/users/:userId/addresses/:id",          authenticateToken, AddressController.deleteAddress);
+router.patch("/users/:userId/addresses/:id/default",   authenticateToken, AddressController.setDefaultAddress);
+router.put ("/users/:userId/addresses-bulk",           authenticateToken, AddressController.replaceAllAddresses);
 
 
 // Sản Phẩm Admin
@@ -178,7 +199,10 @@ router.post(
 );
 
 // Lấy tất cả đánh giá cho một sản phẩm (công khai)
-router.get('/variationId/:variationId/reviews', ClientReviewController.getProductReviews);
+router.get(
+  "/variationId/:variationId/reviews",
+  ClientReviewController.getProductReviews
+);
 
 // Cập nhật một đánh giá đã có (chỉ chủ sở hữu)
 router.put(
