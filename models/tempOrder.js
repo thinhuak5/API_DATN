@@ -10,7 +10,9 @@ const TempOrder = database.define('temp_orders', {
     address: Sequelize.STRING,
     payment_id: Sequelize.INTEGER,
     items: Sequelize.TEXT,
-    amount: Sequelize.INTEGER
+    amount: Sequelize.INTEGER,
+    discount_id: Sequelize.INTEGER,
+    discount_amount: Sequelize.INTEGER
 }, {
     timestamps: true
 });
