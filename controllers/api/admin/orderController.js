@@ -5,6 +5,47 @@ const productVariationModel = require("../../../models/productVariation");
 const productImageModel = require("../../../models/productImage");
 const productModel = require("../../../models/product");
 
+// helper số an toàn
+const n = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+
+const attachImageAndTotals = (orderJson) => {
+  const o = { ...orderJson };
+
+  // Gán image_url cho variation
+  o.items = (o.items || []).map((item) => {
+    if (item?.variation?.productImages?.length) {
+      item.variation.image_url = item.variation.productImages[0].image_url;
+    } else {
+      if (!item.variation) item.variation = {};
+      item.variation.image_url = null;
+    }
+    if (item.variation) delete item.variation.productImages;
+    return item;
+  });
+
+  // Chuẩn hoá payment_id (FE dùng key này)
+  o.payment_id = n(o.payment_id ?? o.payments);
+  // (tuỳ bạn) có thể xoá trường cũ:
+  // delete o.payments;
+
+  // Tính subtotal và total fallback
+  const subtotal = (o.items || []).reduce((sum, it) => {
+    const price = n(it?.variation?.price ?? it?.price);
+    const qty = n(it?.quantity);
+    return sum + price * qty;
+  }, 0);
+
+  const discount = n(o.discount_amount); // nếu không có cột này, sẽ = 0
+  const dbTotal = n(o.total_amount);
+
+  // Trả về các field mà FE đọc
+  o.subtotal = subtotal;
+  o.discount_amount = discount;
+  o.total_amount = dbTotal > 0 ? dbTotal : Math.max(0, subtotal - discount);
+
+  return o;
+};
+
 exports.getAll = async (req, res) => {
   try {
     const orders = await orderModel.findAll({
@@ -32,33 +73,11 @@ exports.getAll = async (req, res) => {
       order: [["createdAt", "DESC"]],
     });
 
-    const data = orders.map((order) => {
-      const o = order.toJSON();
-      o.items = o.items.map((item) => {
-        if (
-          item.variation &&
-          item.variation.productImages &&
-          item.variation.productImages.length > 0
-        ) {
-          item.variation.image_url = item.variation.productImages[0].image_url;
-        } else {
-          item.variation.image_url = null;
-        }
-        delete item.variation.productImages;
-        return item;
-      });
-      o.totalAmount = o.items.reduce((sum, item) => {
-        const price = Number(item.variation?.price ?? item.price) || 0;
-        const qty = Number(item.quantity) || 0;
-        return sum + price * qty;
-      }, 0);
-      return o;
-    });
-
-    res.json(data);
+    const data = orders.map((o) => attachImageAndTotals(o.toJSON()));
+    return res.json(data); // FE đang res.data hoặc mảng trực tiếp
   } catch (error) {
     console.error("Lỗi getAll orders:", error);
-    res.status(500).json({ error: "Lỗi server" });
+    return res.status(500).json({ error: "Lỗi server" });
   }
 };
 
@@ -88,34 +107,13 @@ exports.detail = async (req, res) => {
       ],
     });
 
-    if (!order) {
-      return res.status(404).json({ error: "Đơn hàng không tồn tại" });
-    }
+    if (!order) return res.status(404).json({ error: "Đơn hàng không tồn tại" });
 
-    const o = order.toJSON();
-    o.items = o.items.map((item) => {
-      if (
-        item.variation &&
-        item.variation.productImages &&
-        item.variation.productImages.length > 0
-      ) {
-        item.variation.image_url = item.variation.productImages[0].image_url;
-      } else {
-        item.variation.image_url = null;
-      }
-      delete item.variation.productImages;
-      return item;
-    });
-    o.totalAmount = o.items.reduce((sum, item) => {
-      const price = Number(item.variation?.price ?? item.price) || 0;
-      const qty = Number(item.quantity) || 0;
-      return sum + price * qty;
-    }, 0);
-
-    res.json(o);
+    const o = attachImageAndTotals(order.toJSON());
+    return res.json(o);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Lỗi server" });
+    console.error("detail order error:", error);
+    return res.status(500).json({ error: "Lỗi server" });
   }
 };
 
@@ -131,10 +129,12 @@ exports.create = async (req, res) => {
       name,
       address,
     });
-    res.status(201).json({ message: "Đơn hàng đã được tạo thành công!", order: newOrder });
+    return res
+      .status(201)
+      .json({ message: "Đơn hàng đã được tạo thành công!", order: newOrder });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: "Lỗi khi tạo đơn hàng" });
+    return res.status(500).json({ error: "Lỗi khi tạo đơn hàng" });
   }
 };
 
@@ -144,7 +144,6 @@ exports.update = async (req, res) => {
     const orderId = req.params.id;
     const { payment_status, status } = req.body;
 
-    // 1) Lấy đơn hiện tại (lock để tránh race)
     const order = await orderModel.findByPk(orderId, { transaction: t, lock: t.LOCK.UPDATE });
     if (!order) {
       await t.rollback();
@@ -156,7 +155,6 @@ exports.update = async (req, res) => {
     const nextPaymentStatus =
       typeof payment_status === "number" ? payment_status : order.payment_status;
 
-    // 2) Lần đầu vào trạng thái 4 -> trừ kho biến thể
     const needDeduct = nextStatus === 4 && order.stock_deducted !== 1;
 
     if (needDeduct) {
@@ -167,7 +165,7 @@ exports.update = async (req, res) => {
         lock: t.LOCK.UPDATE,
       });
 
-      const variationIds = orderItems.map(i => i.variation_id).filter(Boolean);
+      const variationIds = orderItems.map((i) => i.variation_id).filter(Boolean);
       const variationMeta = variationIds.length
         ? await productVariationModel.findAll({
             where: { id: variationIds },
@@ -176,12 +174,11 @@ exports.update = async (req, res) => {
           })
         : [];
 
-      const affectedProductIds = [...new Set(variationMeta.map(v => v.product_id))];
+      const affectedProductIds = [...new Set(variationMeta.map((v) => v.product_id))];
 
-      // Trừ tồn & cộng sold cho từng biến thể
       for (const it of orderItems) {
         const variationId = it.variation_id;
-        const qty = Number(it.quantity) || 0;
+        const qty = n(it.quantity);
         if (!variationId || qty <= 0) continue;
 
         await productVariationModel.update(
@@ -193,38 +190,25 @@ exports.update = async (req, res) => {
         );
       }
 
-      // 3) Nếu tổng tồn của tất cả biến thể của 1 sản phẩm = 0 -> Ẩn sản phẩm
       for (const pid of affectedProductIds) {
-        const remain = (await productVariationModel.sum("quantity", {
-          where: { product_id: pid },
-          transaction: t,
-        })) || 0;
+        const remain =
+          (await productVariationModel.sum("quantity", {
+            where: { product_id: pid },
+            transaction: t,
+          })) || 0;
 
         if (remain <= 0) {
-          await productModel.update(
-            { status: 0 }, // 0 = Ẩn
-            { where: { id: pid }, transaction: t }
-          );
+          await productModel.update({ status: 0 }, { where: { id: pid }, transaction: t });
         }
       }
 
-      // 4) Cập nhật trạng thái + đánh dấu đã trừ kho
       await orderModel.update(
-        {
-          status: nextStatus,
-          payment_status: nextPaymentStatus,
-          stock_deducted: 1,
-        },
+        { status: nextStatus, payment_status: nextPaymentStatus, stock_deducted: 1 },
         { where: { id: orderId }, transaction: t }
       );
     } else {
-      // Không cần trừ kho
       await orderModel.update(
-        {
-          status: nextStatus,
-          payment_status: nextPaymentStatus,
-          stock_deducted: order.stock_deducted,
-        },
+        { status: nextStatus, payment_status: nextPaymentStatus, stock_deducted: order.stock_deducted },
         { where: { id: orderId }, transaction: t }
       );
     }
@@ -245,12 +229,10 @@ exports.update = async (req, res) => {
 exports.delete = async (req, res) => {
   try {
     const deleted = await orderModel.destroy({ where: { id: req.params.id } });
-    if (deleted === 0) {
-      return res.status(404).json({ error: "Đơn hàng không tồn tại" });
-    }
-    res.json({ message: "Xóa đơn hàng thành công" });
+    if (deleted === 0) return res.status(404).json({ error: "Đơn hàng không tồn tại" });
+    return res.json({ message: "Xóa đơn hàng thành công" });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: "Lỗi server" });
+    return res.status(500).json({ error: "Lỗi server" });
   }
 };

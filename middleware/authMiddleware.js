@@ -32,12 +32,12 @@ const authenticateToken = async (req, res, next) => {
 
 
 // Middleware kiểm tra quyền Admin (ví dụ)
+// Cho phép role 0 và 1
 const isAdmin = (req, res, next) => {
-    if (req.user && req.user.role === 1) { // Giả sử role 1 là Admin
-        next();
-    } else {
-        res.status(403).json({message: 'Truy cập bị từ chối. Yêu cầu quyền Admin.'});
-    }
+  if (!req.user) return res.status(401).json({ message: 'Chưa xác thực' });
+  // 0: superadmin, 1: admin
+  if (req.user.role === 0 || req.user.role === 1) return next();
+  return res.status(403).json({ message: 'Truy cập bị từ chối. Yêu cầu quyền Admin.' });
 };
 
 const requireLogin = (req, res, next) => {
