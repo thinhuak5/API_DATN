@@ -21,52 +21,52 @@ const isStrongPassword = (password) => {
 class UserController {
 
   // Đăng ký người dùng
-  static async register(req, res) {
-    const { username, name, email, phone, password, status, role } = req.body;
-
-    // Kiểm tra các trường bắt buộc
-    if (!username || !name || !email || !phone || !password) {
-      return res.status(400).json({ message: "Vui lòng điền đầy đủ thông tin!" });
-    }
-
-    try {
-      const existingUser = await User.findOne({ where: { email } });
-      if (existingUser) {
-        return res.status(400).json({ message: "Email đã tồn tại!" });
-      }
-
-      // Nếu dùng Cloudinary, req.file.path là link ảnh Cloudinary
-      const avatarValue = req.file && req.file.path ? req.file.path : "default-avatar.jpg";
-
-      const newUser = await User.create({
-        username,
-        name,
-        email,
-        password: password,
-        phone,
-        avatar: avatarValue,
-        status: status || 1,
-        role: role || 2,
-      });
-
-      res.status(201).json({
-        message: "Đăng ký thành công!",
-        user: {
-          username: newUser.username,
-          name: newUser.name,
-          email: newUser.email,
-          password: newUser.password,
-          phone: newUser.phone,
-          avatar: newUser.avatar,
-          status: newUser.status,
-          role: newUser.role,
-        },
-      });
-    } catch (error) {
-      console.error("Lỗi server: ", error);
-      res.status(500).json({ message: "Lỗi server", error: error.message });
-    }
+  // Đăng ký người dùng
+static async register(req, res) {
+  const { username, name, email, phone, password, status, role } = req.body;
+  if (!username || !name || !email || !phone || !password) {
+    return res.status(400).json({ message: "Vui lòng điền đầy đủ thông tin!" });
   }
+
+  try {
+    const existingUser = await User.findOne({ where: { email } });
+    if (existingUser) return res.status(400).json({ message: "Email đã tồn tại!" });
+
+    const avatarValue = (req.file && req.file.path) ? req.file.path : "default-avatar.jpg";
+
+    const hashed = await bcrypt.hash(password, 10);
+
+    const newUser = await User.create({
+      username,
+      name,
+      email,
+      password: hashed,              // <-- HASH
+      phone,
+      avatar: avatarValue,
+      status: status || 1,
+      role: role || 2,
+    });
+
+    // Không trả password về response
+    return res.status(201).json({
+      message: "Đăng ký thành công!",
+      user: {
+        id: newUser.id,
+        username: newUser.username,
+        name: newUser.name,
+        email: newUser.email,
+        phone: newUser.phone,
+        avatar: newUser.avatar,
+        status: newUser.status,
+        role: newUser.role,
+      },
+    });
+  } catch (error) {
+    console.error("Lỗi server: ", error);
+    return res.status(500).json({ message: "Lỗi server", error: error.message });
+  }
+}
+
 
   // Đăng nhập người dùng
   static async login(req, res) {
@@ -133,20 +133,22 @@ class UserController {
   }
 
   // Lấy thông tin chi tiết người dùng
-  static async detail(req, res) {
-    try {
-      const userId = req.params.id;
-      const user = await User.findByPk(userId);
+  // Lấy thông tin chi tiết người dùng
+static async detail(req, res) {
+  try {
+    const userId = req.params.id || req.params.userId || req.user?.id;
+    if (!userId) return res.status(400).json({ error: "Thiếu tham số id" });
 
-      if (!user) {
-        return res.status(404).json({ error: "Người dùng không tìm thấy" });
-      }
-      res.json(user.toJSON());
-    } catch (err) {
-      console.error("Lỗi khi lấy dữ liệu người dùng:", err);
-      res.status(500).json({ error: "Lỗi server" });
-    }
+    const user = await User.findByPk(userId);
+    if (!user) return res.status(404).json({ error: "Người dùng không tìm thấy" });
+
+    return res.json(user.toJSON());
+  } catch (err) {
+    console.error("Lỗi khi lấy dữ liệu người dùng:", err);
+    return res.status(500).json({ error: "Lỗi server" });
   }
+}
+
 
   // Cập nhật thông tin người dùng
   static async update(req, res) {

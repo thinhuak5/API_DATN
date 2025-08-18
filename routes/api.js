@@ -1,264 +1,173 @@
+// routes/api.js
 const express = require("express");
 const router = express.Router();
 const upload = require("../config/upload");
+
 const CategoryController = require("../controllers/api/admin/categoryController");
 const ProductController = require("../controllers/api/admin/productController");
 const UserController = require("../controllers/api/admin/userController");
-const CommentController = require("../controllers/api/admin/commentController");
 const OrderController = require("../controllers/api/admin/orderController");
 const CartController = require("../controllers/api/client/cartController");
 const AddressController = require("../controllers/api/client/addressController");
-const ClientCheckoutController = require("../controllers/api/client/checkoutController"); // Controller checkout mới
-const {
-  authenticateToken,
-  requireLogin,
-  isAdmin,
-} = require("../middleware/authMiddleware");
+const ClientCheckoutController = require("../controllers/api/client/checkoutController");
 const ClientOrderHistoryController = require("../controllers/api/client/orderHistoryController");
-const {
-  createPaymentQr,
-  checkoutVNpay,
-} = require("../controllers/api/client/vnpayController");
-const momoController = require("../controllers/api/client/momoController");
 const ClientReviewController = require("../controllers/api/client/reviewController");
 const AdminReviewController = require("../controllers/api/admin/reviewAdminController");
-
-const DiscountController = require("../controllers/api/admin/discountController");
-const {
-  deletePaidCartItems,
-} = require("../controllers/api/client/cartController");
-const statisticsController = require("../controllers/api/admin/statisticsController");
 const ContactController = require("../controllers/api/client/contactController");
-/*const AuthController = require('../controllers/client/authController'); */
+const DiscountController = require("../controllers/api/admin/discountController");
+const statisticsController = require("../controllers/api/admin/statisticsController");
+const { createPaymentQr, checkoutVNpay } = require("../controllers/api/client/vnpayController");
+const momoController = require("../controllers/api/client/momoController");
 
-/* router.post('/register',upload.single('avatar'), AuthController.register ); */
-/* -----API Admin----- */
+const { authenticateToken, requireLogin, isAdmin } = require("../middleware/authMiddleware");
 
-// Route thống kê tổng quan
-router.get("/statistics", statisticsController.getStatistics);
+// ===================== PUBLIC / CLIENT APIs =====================
 
-router.get("/statistics/revenue", statisticsController.getRevenueStatistics);
-
-router.get("/categories/list", CategoryController.getAll);
-router.get("/categories/list", CategoryController.getAll); // Lấy tất cả danh mục (cha + con)
-router.get("/categories/parents", CategoryController.getAllParents); // Lấy tất cả danh mục cha (parent_id = NULL)
-router.get("/categories/by-parent/:parent_id", CategoryController.getByParent); // Lấy tất cả danh mục con của 1 cha
-router.get("/categories/:id", CategoryController.detail); // Lấy chi tiết danh mục
-router.post(
-  "/categories/add",
-  upload.single("images"),
-  CategoryController.create
-); // Thêm mới danh mục (cha hoặc con)
-router.put(
-  "/categories/:id",
-  upload.single("images"),
-  CategoryController.update
-); // Cập nhật danh mục
-router.delete("/categories/:id", CategoryController.delete); // Xóa danh mục
-
-// địa chỉ
-// routes/address.routes.js
-
-// dùng userId param hoặc `/me` tuỳ middleware auth của bạn
-// routes/api.js
-// ĐỊA CHỈ (chỉ bỏ /api ở đầu path, giữ middleware auth)
-router.get ("/users/:userId/addresses",                authenticateToken, AddressController.getMyAddresses);
-router.post("/users/:userId/addresses",                authenticateToken, AddressController.createAddress);
-router.put ("/users/:userId/addresses/:id",            authenticateToken, AddressController.updateAddress);
-router.delete("/users/:userId/addresses/:id",          authenticateToken, AddressController.deleteAddress);
-router.patch("/users/:userId/addresses/:id/default",   authenticateToken, AddressController.setDefaultAddress);
-router.put ("/users/:userId/addresses-bulk",           authenticateToken, AddressController.replaceAllAddresses);
-
-
-// Sản Phẩm Admin
+// Products (client)
 router.get("/products/list", ProductController.getAll);
 router.get("/products/:id", ProductController.detail);
-router.post(
-  "/products/add",
-  upload.array("images", 10),
-  ProductController.create
-);
-router.put(
-  "/products/:id",
-  upload.array("images", 10),
-  ProductController.update
-);
-router.delete("/products/:id", ProductController.delete);
 
-// Sản Phẩm Admin
-// router.post('/register', UserController.register);
-router.post("/register", upload.single("avatar"), UserController.register);
-router.post("/login", UserController.login);
-router.post("/login-google", UserController.loginGoogle);
-// quên mật khẩu
-router.post("/forgot-password", UserController.forgotPassword);
-router.post("/reset-password", UserController.resetPassword);
-// Sản Phẩm Admin
-// router.post('/register', UserController.register);
-// router.post('/login', UserController.login);
+// Reviews công khai cho product-variation
+router.get("/variationId/:variationId/reviews", ClientReviewController.getProductReviews);
 
-// Lấy danh sách user
-router.get("/users/list", UserController.getAll);
-
-// Lấy thông tin user theo ID
-router.get("/users/:id", UserController.detail);
-
-// Đăng ký user kèm avatar
-
-// Cập nhật thông tin user, hỗ trợ upload avatar nếu có
-router.put("/users/:id", upload.single("avatar"), UserController.update);
-
-// Xóa user
-router.delete("/users/:id", UserController.delete);
-
-// // bình luận
-router.get("/comments", CommentController.getAll);
-router.get("/comments/:id", CommentController.detail);
-router.post("/comments", CommentController.create);
-router.put("/comments/:id", CommentController.update);
-router.delete("/comments/:id", CommentController.delete);
-
-// oder
-router.get("/oders", OrderController.getAll);
-router.get("/oders/:id", OrderController.detail);
-router.put("/oders/:id", OrderController.update);
-router.post("/oders", OrderController.create);
-router.delete("/oders/:id", OrderController.delete);
-
-// thêm sản phẩm vào giỏ hàng
-router.post(
-  "/cart/add",
-  authenticateToken,
-  requireLogin,
-  CartController.addToCart
-);
-
-// Lấy danh sách sản phẩm trong giỏ
-router.get("/cart", authenticateToken, CartController.getCart);
-
-// Cập nhật số lượng của một MỤC GIỎ HÀNG cụ thể
-// Frontend sẽ gửi { quantity: newQuantity } đến endpoint này
-router.put(
-  "/cart/update/:cart_item_id",
-  authenticateToken,
-  CartController.updateCart
-);
-
-// Xoá một MỤC GIỎ HÀNG cụ thể khỏi giỏ
-router.delete(
-  "/cart/:cart_item_id",
-  authenticateToken,
-  CartController.removeFromCart
-);
-
-// Xóa các MỤC GIỎ HÀNG đã chọn sau khi đặt hàng
-// Frontend sẽ gửi { selectedCartItemIds: [...] } trong body
-router.post(
-  "/cart/clear-selected-items",
-  authenticateToken,
-  CartController.clearCart
-);
-
-// paymennt VNpay
-router.post("/create-qr", createPaymentQr);
-router.get("/check-payment-vnpay", checkoutVNpay);
-router.get("/vnpay-return", checkoutVNpay);
-router.post("/vnpay-success", authenticateToken, deletePaidCartItems);
-
-// payment MoMo
-router.post(
-  "/payments/momo",
-  authenticateToken,
-  momoController.createMomoPayment
-);
-
-// Checkout - API MỚI
-// Cần middleware authenticateToken để đảm bảo chỉ user đã đăng nhập mới checkout được
-router.post(
-  "/orders/checkout",
-  authenticateToken,
-  ClientCheckoutController.createOrder
-);
+// ➕ Check đủ điều kiện review theo PRODUCT (FE đang gọi endpoint này)
 router.get(
-  "/orders/history",
+  "/products/eligible-for-review/:productId",
   authenticateToken,
-  ClientOrderHistoryController.getOrderHistory
-);
-router.put(
-  "/orders/:id/cancel",
-  authenticateToken,
-  ClientOrderHistoryController.cancelOrder
+  ClientReviewController.checkEligibleForReview
 );
 
-// --- ROUTES CHO ĐÁNH GIÁ SẢN PHẨM ---
-router.post(
-  "/variationId/:variationId/reviews",
-  authenticateToken,
-  upload.array("images", 5), // <--- SỬA ĐỔI: Chấp nhận tối đa 5 file ảnh với field name là 'images'
-  ClientReviewController.createReview
-);
-
-// Lấy tất cả đánh giá cho một sản phẩm (công khai)
+// (tuỳ chọn) Check theo VARIATION nếu cần dùng riêng
 router.get(
-  "/variationId/:variationId/reviews",
-  ClientReviewController.getProductReviews
-);
-
-// Cập nhật một đánh giá đã có (chỉ chủ sở hữu)
-router.put(
-  "/reviews/:reviewId",
-  authenticateToken,
-  upload.array("images", 5), // Cũng hỗ trợ upload ảnh mới khi sửa
-  ClientReviewController.updateReview
-);
-
-// Xóa một đánh giá (chỉ chủ sở hữu)
-router.delete(
-  "/reviews/:reviewId",
-  authenticateToken,
-  ClientReviewController.deleteReview
-);
-
-router.get(
-  "/products/eligible-for-review/:variationId", // URL này sẽ được nối sau prefix /api (nếu có)
+  "/variation/:variationId/eligible-for-review",
   authenticateToken,
   ClientReviewController.getEligibleOrderItemsForReview
 );
-// =----------------------------------------------đây
-router.post("/contact", ContactController.create);
 
-// Lấy danh sách tất cả phản hồi (dành cho admin)
+// Categories PUBLIC
+router.get("/public/categories", CategoryController.getAllParents);
+router.get("/public/categories/:id", CategoryController.detail);
+
+// === AUTH (public) ===
+router.post("/register", upload.single("avatar"), UserController.register);
+router.post("/login", UserController.login);
+router.post("/login-google", UserController.loginGoogle);
+router.post("/forgot-password", UserController.forgotPassword);
+router.post("/reset-password", UserController.resetPassword);
+
+// === Contact (public) ===
+router.post("/contact", ContactController.create); // <<<<<< THÊM DÒNG NÀY
+
+// === Cart / Checkout / Orders lịch sử (CẦN LOGIN) ===
+router.post("/cart/add", authenticateToken, requireLogin, CartController.addToCart);
+router.get("/cart", authenticateToken, CartController.getCart);
+router.put("/cart/update/:cart_item_id", authenticateToken, CartController.updateCart);
+router.delete("/cart/:cart_item_id", authenticateToken, CartController.removeFromCart);
+router.post("/cart/clear-selected-items", authenticateToken, CartController.clearCart);
+
+router.post("/orders/checkout", authenticateToken, ClientCheckoutController.createOrder);
+router.get("/orders/history", authenticateToken, ClientOrderHistoryController.getOrderHistory);
+router.put("/orders/:id/cancel", authenticateToken, ClientOrderHistoryController.cancelOrder);
+
+// === Reviews (CẦN LOGIN) ===
+router.post(
+  "/variationId/:variationId/reviews",
+  authenticateToken,
+  upload.array("images", 5),
+  ClientReviewController.createReview
+);
+router.put(
+  "/reviews/:reviewId",
+  authenticateToken,
+  upload.array("images", 5),
+  ClientReviewController.updateReview
+);
+router.delete("/reviews/:reviewId", authenticateToken, ClientReviewController.deleteReview);
+
+// === Address + User (client)
+router.get("/users/:id", authenticateToken, (req, res, next) => {
+  if (String(req.params.id) !== String(req.user.id) && req.user.role !== 1) {
+    return res.status(403).json({ message: "Forbidden" });
+  }
+  return UserController.detail(req, res, next);
+});
+router.put("/users/:id", authenticateToken, upload.single("avatar"), (req, res, next) => {
+  if (String(req.params.id) !== String(req.user.id) && req.user.role !== 1) {
+    return res.status(403).json({ message: "Forbidden" });
+  }
+  return UserController.update(req, res, next);
+});
+router.get("/users/:id/addresses", authenticateToken, AddressController.getMyAddresses);
+router.post("/users/:id/addresses", authenticateToken, AddressController.createAddress);
+router.put("/users/:id/addresses/:id", authenticateToken, AddressController.updateAddress);
+router.delete("/users/:id/addresses/:id", authenticateToken, AddressController.deleteAddress);
+router.patch("/users/:id/addresses/:id/default", authenticateToken, AddressController.setDefaultAddress);
+router.put("/users/:id/addresses-bulk", authenticateToken, AddressController.replaceAllAddresses);
+
+// === Payment ===
+router.post("/create-qr", createPaymentQr);
+router.get("/check-payment-vnpay", checkoutVNpay);
+router.get("/vnpay-return", checkoutVNpay);
+router.post("/vnpay-success", authenticateToken, CartController.deletePaidCartItems);
+router.post("/payments/momo", authenticateToken, momoController.createMomoPayment);
+
+// === Discount cho client kiểm tra mã ===
+router.post("/discounts/check", DiscountController.check);
+
+// ===================== ADMIN =====================
+router.use("/admin", authenticateToken, isAdmin);
+
+// Statistics
+router.get("/admin/statistics", statisticsController.getStatistics);
+router.get("/admin/statistics/revenue", statisticsController.getRevenueStatistics);
+
+// Categories (admin)
+router.get("/admin/categories/list", CategoryController.getAll);
+router.get("/admin/categories/parents", CategoryController.getAllParents);
+router.get("/admin/categories/by-parent/:parent_id", CategoryController.getByParent);
+router.get("/admin/categories/:id", CategoryController.detail);
+router.post("/admin/categories/add", upload.single("images"), CategoryController.create);
+router.put("/admin/categories/:id", upload.single("images"), CategoryController.update);
+router.delete("/admin/categories/:id", CategoryController.delete);
+
+// Products (admin)
+router.get("/admin/products/list", ProductController.getAll);
+router.get("/admin/products/:id", ProductController.detail);
+router.post("/admin/products/add", upload.array("images", 10), ProductController.create);
+router.put("/admin/products/:id", upload.array("images", 10), ProductController.update);
+router.delete("/admin/products/:id", ProductController.delete);
+
+// Users (admin)
+router.get("/admin/users/list", UserController.getAll);
+router.get("/admin/users/:id", UserController.detail);
+router.put("/admin/users/:id", upload.single("avatar"), UserController.update);
+router.delete("/admin/users/:id", UserController.delete);
+
+// Orders (admin)
+router.get("/admin/orders", OrderController.getAll);
+router.get("/admin/orders/:id", OrderController.detail);
+router.put("/admin/orders/:id", OrderController.update);
+router.post("/admin/orders", OrderController.create);
+router.delete("/admin/orders/:id", OrderController.delete);
+
+// Contact (admin)
 router.get("/admin/contact", ContactController.getAll);
 router.get("/admin/contact/:id", ContactController.getOne);
-
-// Trả lời phản hồi (admin cập nhật reply)
 router.post("/admin/contact/reply/:id", ContactController.reply);
 
-// --- ADMIN ROUTES CHO QUẢN LÝ ĐÁNH GIÁ ---
-// Prefix /admin/reviews
+// Reviews (admin)
 const adminReviewRouter = express.Router();
-
-// Sử dụng middleware cho tất cả các route trong group này
-adminReviewRouter.use(authenticateToken, isAdmin);
-
-adminReviewRouter.get("/", AdminReviewController.getAllReviews); // GET /api/admin/reviews
-adminReviewRouter.get("/:reviewId", AdminReviewController.getReviewDetails); // GET /api/admin/reviews/123
-adminReviewRouter.patch(
-  "/:reviewId/status",
-  AdminReviewController.updateReviewStatus
-); // PATCH /api/admin/reviews/123/status
-adminReviewRouter.delete("/:reviewId", AdminReviewController.deleteReview); // DELETE /api/admin/reviews/123
-
-// Gắn router con vào router chính
+adminReviewRouter.get("/", AdminReviewController.getAllReviews);
+adminReviewRouter.get("/:reviewId", AdminReviewController.getReviewDetails);
+adminReviewRouter.patch("/:reviewId/status", AdminReviewController.updateReviewStatus);
+adminReviewRouter.delete("/:reviewId", AdminReviewController.deleteReview);
 router.use("/admin/reviews", adminReviewRouter);
 
-// --- MÃ GIẢM GIÁ ADMIN ---
-router.get("/discounts", DiscountController.getAll);
-router.get("/discounts/:id", DiscountController.detail);
-router.post("/discounts", DiscountController.create);
-router.put("/discounts/:id", DiscountController.update);
-router.delete("/discounts/:id", DiscountController.delete);
+// Discounts (admin)
+router.get("/admin/discounts", DiscountController.getAll);
+router.get("/admin/discounts/:id", DiscountController.detail);
+router.post("/admin/discounts", DiscountController.create);
+router.put("/admin/discounts/:id", DiscountController.update);
+router.delete("/admin/discounts/:id", DiscountController.delete);
 
-// Kiểm tra mã giảm giá hợp lệ
-router.post("/discounts/check", DiscountController.check);
 module.exports = router;
