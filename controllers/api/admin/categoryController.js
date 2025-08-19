@@ -1,50 +1,61 @@
+// controllers/api/admin/categoryController.js
 const categoryModel = require('../../../models/category');
 const { Op } = require("sequelize");
 
-// Lấy tất cả danh mục (bao gồm cả cha và con)
+/**
+ * Trả về TẤT CẢ danh mục (cha + con)
+ * Dùng cho ADMIN và PUBLIC khi FE cần đủ dữ liệu để build cây
+ */
 exports.getAll = async (req, res, next) => {
   try {
     const data = await categoryModel.findAll();
-    res.json(data);
+    // Trả về mảng thô cho FE dễ dùng
+    res.json(Array.isArray(data) ? data : []);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Lỗi server" });
   }
 };
 
-// Lấy tất cả danh mục cha (parent_id = NULL)
+/**
+ * Trả về tất cả danh mục CHA (parent_id = NULL)
+ * Hữu ích khi cần chỉ danh mục gốc
+ */
 exports.getAllParents = async (req, res, next) => {
   try {
     const data = await categoryModel.findAll({
       where: { parent_id: null }
     });
-    res.json(data);
+    res.json(Array.isArray(data) ? data : []);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Lỗi server khi lấy danh mục cha" });
   }
 };
 
-// Lấy danh mục con theo id danh mục cha
+/**
+ * Trả về tất cả danh mục CON theo id cha
+ */
 exports.getByParent = async (req, res, next) => {
   try {
-    const parentId = req.params.parent_id;  // Sử dụng parent_id chứ không phải categoryparent_id nữa!
+    const parentId = req.params.parent_id;
     const data = await categoryModel.findAll({
       where: { parent_id: parentId }
     });
-    res.json(data);
+    res.json(Array.isArray(data) ? data : []);
   } catch (error) {
     console.error("Lỗi chi tiết getByParent:", error);
     res.status(500).json({ error: "Lỗi server khi lấy danh mục con theo danh mục cha" });
   }
 };
 
-// Lấy chi tiết danh mục theo id
+/**
+ * Trả về chi tiết 1 danh mục
+ */
 exports.detail = async (req, res, next) => {
   try {
     const category = await categoryModel.findByPk(req.params.id);
     if (!category) {
-      // Trả về lỗi nếu không tìm thấy
       return res.status(404).json({ error: "Không tìm thấy danh mục" });
     }
     res.json(category);
@@ -54,7 +65,9 @@ exports.detail = async (req, res, next) => {
   }
 };
 
-// Thêm mới danh mục (cha hoặc con đều dùng hàm này, nếu tạo cha thì không gửi parent_id)
+/**
+ * Thêm mới danh mục (cha hoặc con: nếu tạo cha thì không gửi parent_id)
+ */
 exports.create = async (req, res, next) => {
   try {
     const data = req.body;
@@ -73,23 +86,30 @@ exports.create = async (req, res, next) => {
   }
 };
 
-// Cập nhật danh mục
-// Cập nhật danh mục
+/**
+ * Cập nhật danh mục
+ */
 exports.update = async (req, res, next) => {
   try {
     const data = req.body;
-    // Không cho phép parent_id = id chính nó!
+
+    // Không cho phép tự làm cha của chính mình
     if (data.parent_id && String(data.parent_id) === String(req.params.id)) {
       return res.status(400).json({ error: "Không thể chọn chính nó làm danh mục cha!" });
     }
+
     if (req.file) {
       data.images = req.file.path;
     }
+
     const [updated] = await categoryModel.update(data, {
       where: { id: req.params.id }
     });
-    if (updated === 0) {return res.status(404).json({ error: "Danh mục không tìm thấy" });
+
+    if (updated === 0) {
+      return res.status(404).json({ error: "Danh mục không tìm thấy" });
     }
+
     res.json({ message: "Cập nhật danh mục thành công" });
   } catch (error) {
     console.error("Error updating category:", error);
@@ -97,8 +117,9 @@ exports.update = async (req, res, next) => {
   }
 };
 
-
-// Xóa danh mục
+/**
+ * Xoá danh mục
+ */
 exports.delete = async (req, res, next) => {
   try {
     await categoryModel.destroy({

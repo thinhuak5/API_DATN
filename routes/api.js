@@ -45,7 +45,14 @@ router.get(
 );
 
 // Categories PUBLIC
-router.get("/public/categories", CategoryController.getAllParents);
+// ===== Categories PUBLIC =====
+// ⚠️ Quan trọng: FE cần CẢ cha + con để lọc & dropdown, nên trả về getAll
+router.get("/public/categories", CategoryController.getAll);
+// (tùy chọn) nếu FE muốn gọi riêng để load con theo cha
+router.get("/public/categories/by-parent/:parent_id", CategoryController.getByParent);
+// (tùy chọn) nếu cần chỉ danh mục cha cho UI nào đó
+router.get("/public/categories/parents", CategoryController.getAllParents);
+// Chi tiết 1 danh mục
 router.get("/public/categories/:id", CategoryController.detail);
 
 // === AUTH (public) ===

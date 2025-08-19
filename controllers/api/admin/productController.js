@@ -81,7 +81,7 @@ exports.create = async (req, res) => {
     const parsedVars = JSON.parse(variations || "[]");
 
     // 3) nhóm file upload theo variation_idx
-    const files = req.files || [];
+const files = req.files || [];
     const idxs = req.body.variation_idx || [];
     const filesMap = {};
     if (files.length) {
@@ -184,7 +184,7 @@ exports.update = async (req, res) => {
       if (Array.isArray(toRemove) && toRemove.length) {
         for (let url of toRemove) {
           const publicId = url.split("/").pop().split(".")[0];
-          await cloudinary.uploader.destroy(publicId).catch(() => {});
+await cloudinary.uploader.destroy(publicId).catch(() => {});
         }
         await ProductImage.destroy({ where: { image_url: toRemove }, transaction: t });
       }
@@ -264,7 +264,7 @@ exports.update = async (req, res) => {
         // specs: xóa hết rồi tạo lại (đơn giản, an toàn)
         await ProductVariationSpec.destroy({ where: { variation_id: v.id }, transaction: t });
         if (Array.isArray(v.specs) && v.specs.length) {
-          const specsPayload = v.specs.map((s) => ({
+const specsPayload = v.specs.map((s) => ({
             variation_id: v.id,
             label: s.label,
             value: s.value,
