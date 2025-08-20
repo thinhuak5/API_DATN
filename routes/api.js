@@ -7,13 +7,16 @@ const CategoryController = require("../controllers/api/admin/categoryController"
 const ProductController = require("../controllers/api/admin/productController");
 const UserController = require("../controllers/api/admin/userController");
 const OrderController = require("../controllers/api/admin/orderController");
+// THÊM/SỬA CHO ĐÚNG:
+const AdminReviewController = require("../controllers/api/admin/reviewAdminController");
+
 const CartController = require("../controllers/api/client/cartController");
 const AddressController = require("../controllers/api/client/addressController");
 const ClientCheckoutController = require("../controllers/api/client/checkoutController");
 const ClientOrderHistoryController = require("../controllers/api/client/orderHistoryController");
 const ClientReviewController = require("../controllers/api/client/reviewController");
-const AdminReviewController = require("../controllers/api/admin/reviewAdminController");
 const ContactController = require("../controllers/api/client/contactController");
+
 const DiscountController = require("../controllers/api/admin/discountController");
 const statisticsController = require("../controllers/api/admin/statisticsController");
 const { createPaymentQr, checkoutVNpay } = require("../controllers/api/client/vnpayController");
@@ -27,45 +30,28 @@ const { authenticateToken, requireLogin, isAdmin } = require("../middleware/auth
 router.get("/products/list", ProductController.getAll);
 router.get("/products/:id", ProductController.detail);
 
-// Reviews công khai cho product-variation
+// Reviews (public)
 router.get("/variationId/:variationId/reviews", ClientReviewController.getProductReviews);
-
-// ➕ Check đủ điều kiện review theo PRODUCT (FE đang gọi endpoint này)
-router.get(
-  "/products/eligible-for-review/:productId",
-  authenticateToken,
-  ClientReviewController.checkEligibleForReview
-);
-
-// (tuỳ chọn) Check theo VARIATION nếu cần dùng riêng
-router.get(
-  "/variation/:variationId/eligible-for-review",
-  authenticateToken,
-  ClientReviewController.getEligibleOrderItemsForReview
-);
+router.get("/products/eligible-for-review/:productId", authenticateToken, ClientReviewController.checkEligibleForReview);
+router.get("/variation/:variationId/eligible-for-review", authenticateToken, ClientReviewController.getEligibleOrderItemsForReview);
 
 // Categories PUBLIC
-// ===== Categories PUBLIC =====
-// ⚠️ Quan trọng: FE cần CẢ cha + con để lọc & dropdown, nên trả về getAll
 router.get("/public/categories", CategoryController.getAll);
-// (tùy chọn) nếu FE muốn gọi riêng để load con theo cha
 router.get("/public/categories/by-parent/:parent_id", CategoryController.getByParent);
-// (tùy chọn) nếu cần chỉ danh mục cha cho UI nào đó
 router.get("/public/categories/parents", CategoryController.getAllParents);
-// Chi tiết 1 danh mục
 router.get("/public/categories/:id", CategoryController.detail);
 
-// === AUTH (public) ===
+// Auth
 router.post("/register", upload.single("avatar"), UserController.register);
 router.post("/login", UserController.login);
 router.post("/login-google", UserController.loginGoogle);
 router.post("/forgot-password", UserController.forgotPassword);
 router.post("/reset-password", UserController.resetPassword);
 
-// === Contact (public) ===
-router.post("/contact", ContactController.create); // <<<<<< THÊM DÒNG NÀY
+// Contact
+router.post("/contact", ContactController.create);
 
-// === Cart / Checkout / Orders lịch sử (CẦN LOGIN) ===
+// Cart / Checkout / Orders
 router.post("/cart/add", authenticateToken, requireLogin, CartController.addToCart);
 router.get("/cart", authenticateToken, CartController.getCart);
 router.put("/cart/update/:cart_item_id", authenticateToken, CartController.updateCart);
@@ -76,34 +62,29 @@ router.post("/orders/checkout", authenticateToken, ClientCheckoutController.crea
 router.get("/orders/history", authenticateToken, ClientOrderHistoryController.getOrderHistory);
 router.put("/orders/:id/cancel", authenticateToken, ClientOrderHistoryController.cancelOrder);
 
-// === Reviews (CẦN LOGIN) ===
-router.post(
-  "/variationId/:variationId/reviews",
-  authenticateToken,
-  upload.array("images", 5),
-  ClientReviewController.createReview
-);
-router.put(
-  "/reviews/:reviewId",
-  authenticateToken,
-  upload.array("images", 5),
-  ClientReviewController.updateReview
-);
+// Reviews (CẦN LOGIN)
+router.post("/variationId/:variationId/reviews", authenticateToken, upload.array("images", 5), ClientReviewController.createReview);
+router.put("/reviews/:reviewId", authenticateToken, upload.array("images", 5), ClientReviewController.updateReview);
 router.delete("/reviews/:reviewId", authenticateToken, ClientReviewController.deleteReview);
 
-// === Address + User (client)
+// === Address + User (client) ===
+// Chỉ xem/chỉnh SỐNG cho CHÍNH CHỦ ở nhánh client.
+// (Admin có route Riêng ở /api/admin/users/* để quản trị người dùng)
 router.get("/users/:id", authenticateToken, (req, res, next) => {
-  if (String(req.params.id) !== String(req.user.id) && req.user.role !== 1) {
+  if (String(req.params.id) !== String(req.user.id)) {
     return res.status(403).json({ message: "Forbidden" });
   }
   return UserController.detail(req, res, next);
 });
+
 router.put("/users/:id", authenticateToken, upload.single("avatar"), (req, res, next) => {
-  if (String(req.params.id) !== String(req.user.id) && req.user.role !== 1) {
+  if (String(req.params.id) !== String(req.user.id)) {
     return res.status(403).json({ message: "Forbidden" });
   }
+  // Controller sẽ hiểu đây là nhánh client (không /api/admin) và chỉ cho sửa name/phone/avatar
   return UserController.update(req, res, next);
 });
+
 router.get("/users/:id/addresses", authenticateToken, AddressController.getMyAddresses);
 router.post("/users/:id/addresses", authenticateToken, AddressController.createAddress);
 router.put("/users/:id/addresses/:id", authenticateToken, AddressController.updateAddress);
@@ -111,14 +92,14 @@ router.delete("/users/:id/addresses/:id", authenticateToken, AddressController.d
 router.patch("/users/:id/addresses/:id/default", authenticateToken, AddressController.setDefaultAddress);
 router.put("/users/:id/addresses-bulk", authenticateToken, AddressController.replaceAllAddresses);
 
-// === Payment ===
+// Payment
 router.post("/create-qr", createPaymentQr);
 router.get("/check-payment-vnpay", checkoutVNpay);
 router.get("/vnpay-return", checkoutVNpay);
 router.post("/vnpay-success", authenticateToken, CartController.deletePaidCartItems);
 router.post("/payments/momo", authenticateToken, momoController.createMomoPayment);
 
-// === Discount cho client kiểm tra mã ===
+// Discount (client check)
 router.post("/discounts/check", DiscountController.check);
 
 // ===================== ADMIN =====================
@@ -144,7 +125,7 @@ router.post("/admin/products/add", upload.array("images", 10), ProductController
 router.put("/admin/products/:id", upload.array("images", 10), ProductController.update);
 router.delete("/admin/products/:id", ProductController.delete);
 
-// Users (admin)
+// Users (admin) — role 0 mới có quyền sửa/xóa (đã kiểm trong controller)
 router.get("/admin/users/list", UserController.getAll);
 router.get("/admin/users/:id", UserController.detail);
 router.put("/admin/users/:id", upload.single("avatar"), UserController.update);
