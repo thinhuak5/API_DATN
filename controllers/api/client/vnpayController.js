@@ -35,7 +35,7 @@ const createPaymentQr = async (req, res) => {
       payment_id,
       total_amount: vnp_Amount / 100, // Chia 100 để về đơn vị đồng thực tế
       status: 1,
-      payment_status: 0, // Chưa thanh toán
+      payment_status: 1, // Chưa thanh toán
       txn_ref: txnRef,
       discount_id: discount_id || null,
       discount_amount: discount_amount || 0
@@ -109,7 +109,9 @@ const checkoutVNpay = async (req, res) => {
 
       // Cập nhật trạng thái thanh toán thành công
       await Order.update(
-        { payment_status: 1 }, // Thanh toán thành công
+        { payment_status: 1 ,
+          txn_ref: txnRef, // Cập nhật txn_ref nếu cần
+        }, // Thanh toán thành công
         { where: { id: order.id } }
       );
 
@@ -133,8 +135,9 @@ const checkoutVNpay = async (req, res) => {
           await OrderItem.destroy({ where: { order_id: order.id } });
           await Order.destroy({ where: { id: order.id } });
         }
+        return res.redirect('http://localhost:3001/order-history?message=failed');
       }
-      return res.redirect('http://localhost:3001/order-history?message=failed');
+      return res.json({ message: 'Chưa xóa đơn hàng', txnRef: txnRef });
     }
   } catch (error) {
     console.error('Lỗi xử lý callback VNPay:', error);
