@@ -17,6 +17,7 @@ const Order = database.define('orders',
         payment_status: Sequelize.TINYINT,
         status: Sequelize.TINYINT,
         user_id: Sequelize.INTEGER,
+        txn_ref: Sequelize.STRING, // Tham chiếu giao dịch từ VNPay
         address: Sequelize.STRING,
         cancellation_reason: Sequelize.STRING, // Lý do hủy đơn hàng
         discount_id: Sequelize.INTEGER, // ID của mã giảm giá được áp dụng
