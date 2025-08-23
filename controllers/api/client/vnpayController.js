@@ -87,7 +87,7 @@ const createPaymentQr = async (req, res) => {
 
     const paymentUrl = await vnpay.buildPaymentUrl({
       // Nếu vnp_Amount từ FE là total*100 thì truyền nguyên vnp_Amount xuống VNPay:
-      vnp_Amount: String(vnp_Amount),
+      vnp_Amount: String(vnp_Amount / 100),
       vnp_IpAddr: req.ip || "127.0.0.1",
       vnp_TxnRef: String(txnRef),
       vnp_OrderInfo: `Thanh toán đơn hàng #${txnRef}`,
@@ -212,7 +212,7 @@ const checkoutVNpay = async (req, res) => {
 
         // Đánh dấu đã thanh toán
         await Order.update(
-          { payment_status: 1, status: 2, txn_ref: txnRef },
+            {payment_status: 1, status: 1, txn_ref: txnRef},
           { where: { id: order.id }, transaction: t }
         );
 
