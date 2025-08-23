@@ -4,6 +4,8 @@ const OrderItem = require("../../../models/OrderItem");
 const ProductVariation = require("../../../models/productVariation");
 const ProductImage = require("../../../models/productImage");
 const database = require("../../../models/database");
+
+// =============== GET /api/orders/history =================
 exports.getOrderHistory = async (req, res, next) => {
   if (!req.user || !req.user.id) {
     return res.status(401).json({ message: "Yêu cầu không được xác thực." });
@@ -20,14 +22,14 @@ exports.getOrderHistory = async (req, res, next) => {
           include: [
             {
               model: ProductVariation,
-              as: "variation", // Đảm bảo dùng variation nếu thay đổi ở models
+              as: "variation",
               attributes: ["id", "name", "price"],
               include: [
                 {
                   model: ProductImage,
                   as: "productImages",
                   attributes: ["image_url"],
-                  limit: 1, // Chỉ lấy ảnh đầu tiên
+                  limit: 1,
                 },
               ],
             },
@@ -37,40 +39,39 @@ exports.getOrderHistory = async (req, res, next) => {
       order: [["createdAt", "DESC"]],
     });
 
-    // Định dạng lại dữ liệu để trả về URL Cloudinary trực tiếp
     const ordersWithTotal = orders.map((order) => {
-      const orderJSON = order.toJSON();
-      orderJSON.items = orderJSON.items.map((item) => {
-        // Lấy image_url từ productImages (Cloudinary URL)
+      const o = order.toJSON();
+
+      o.items = (o.items || []).map((item) => {
         if (
           item.variation &&
           item.variation.productImages &&
           item.variation.productImages.length > 0
         ) {
           item.variation.image_url = item.variation.productImages[0].image_url;
-          delete item.variation.productImages; // Xóa productImages để giảm payload
+          delete item.variation.productImages;
         } else {
-          item.variation.image_url = null; // Hoặc trả về URL ảnh mặc định nếu cần
+          item.variation.image_url = null; // FE sẽ tự fallback "Không có ảnh"
         }
         return item;
       });
 
-      // Tính tổng tiền
-      orderJSON.totalAmount = orderJSON.items.reduce((sum, item) => {
-        const price = Number(item.variation?.price || item.price) || 0;
-        const quantity = Number(item.quantity) || 0;
-        return sum + price * quantity;
+      // Tổng tiền (không trừ giảm giá ở đây; FE đã hiển thị -discount nếu có)
+      o.totalAmount = (o.items || []).reduce((sum, it) => {
+        const price = Number(it.variation?.price || it.price) || 0;
+        const qty = Number(it.quantity) || 0;
+        return sum + price * qty;
       }, 0);
 
-      return orderJSON;
+      return o;
     });
 
     console.log("--- getOrderHistory Result ---");
     ordersWithTotal.forEach((order) => {
       console.log(`Order ID: ${order.id}, Total Amount: ${order.totalAmount}`);
-      order.items.forEach((item) => {
+      (order.items || []).forEach((it) => {
         console.log(
-          `  Product Variation: ${item.variation.name}, Image URL: ${item.variation.image_url}`
+          `  Product Variation: ${it.variation?.name} | Image URL: ${it.variation?.image_url}`
         );
       });
     });
@@ -85,8 +86,7 @@ exports.getOrderHistory = async (req, res, next) => {
   }
 };
 
-
-
+// =============== PUT /api/orders/:id/cancel ==============
 exports.cancelOrder = async (req, res, next) => {
   if (!req.user || !req.user.id) {
     return res.status(401).json({ message: "Yêu cầu không được xác thực." });
@@ -104,12 +104,18 @@ exports.cancelOrder = async (req, res, next) => {
         .json({ message: "Lý do hủy đơn hàng là bắt buộc." });
     }
 
+    // Lấy đơn + items để hoàn kho
     const order = await Order.findOne({
-      where: {
-        id: orderId,
-        user_id: userId,
-      },
+      where: { id: orderId, user_id: userId },
+      include: [
+        {
+          model: OrderItem,
+          as: "items",
+          attributes: ["id", "variation_id", "quantity"],
+        },
+      ],
       transaction: t,
+      lock: t.LOCK.UPDATE, 
     });
 
     if (!order) {
@@ -119,24 +125,40 @@ exports.cancelOrder = async (req, res, next) => {
       });
     }
 
-    if (order.status !== 1) {
+    // Chỉ cho hủy khi đang "Chờ xác nhận"
+    if (Number(order.status) !== 1) {
       await t.rollback();
       return res
         .status(400)
         .json({ message: "Không thể hủy đơn hàng ở trạng thái này." });
     }
 
-    order.status = 0;
+    // Hoàn kho theo từng item (TC #14)
+    for (const it of order.items || []) {
+      if (it.variation_id) {
+        await ProductVariation.increment("quantity", {
+          by: Number(it.quantity) || 0,
+          where: { id: it.variation_id },
+          transaction: t,
+        });
+      }
+    }
+
+    // Cập nhật trạng thái đơn
+    order.status = 0; // đã hủy
     order.cancellation_reason = reason.trim();
     order.cancelledAt = new Date();
-
     await order.save({ transaction: t });
 
     await t.commit();
-    console.log(`Đơn hàng #${orderId} đã được hủy. Lý do: ${reason.trim()}`);
+
+    console.log(
+      `Đơn hàng #${orderId} đã được hủy. Hoàn kho xong. Lý do: ${reason.trim()}`
+    );
+
     res.json({
       message: `Đơn hàng #${orderId} đã được hủy thành công.`,
-      orderId: orderId,
+      orderId,
       newStatus: 0,
       reason: reason.trim(),
     });
@@ -149,4 +171,3 @@ exports.cancelOrder = async (req, res, next) => {
     });
   }
 };
-

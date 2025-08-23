@@ -121,8 +121,8 @@ router.delete("/admin/categories/:id", CategoryController.delete);
 // Products (admin)
 router.get("/admin/products/list", ProductController.getAll);
 router.get("/admin/products/:id", ProductController.detail);
-router.post("/admin/products/add", upload.array("images", 10), ProductController.create);
-router.put("/admin/products/:id", upload.array("images", 10), ProductController.update);
+router.post("/admin/products/add", upload.array("images"), ProductController.create);
+router.put("/admin/products/:id", upload.array("images"), ProductController.update);
 router.delete("/admin/products/:id", ProductController.delete);
 
 // Users (admin) — role 0 mới có quyền sửa/xóa (đã kiểm trong controller)

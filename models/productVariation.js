@@ -28,7 +28,7 @@ const ProductVariation = database.define('ProductVariation', {
     allowNull: false,
     defaultValue: 0,
   },
-
+sold: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
 }, {
   tableName: 'product_variations',
   timestamps: true,
