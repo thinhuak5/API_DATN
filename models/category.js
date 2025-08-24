@@ -11,7 +11,9 @@ const Category = database.define('categories',
         name: Sequelize.STRING,
         status: Sequelize.TINYINT,
         images: Sequelize.STRING,
-        parent_id: Sequelize.INTEGER
+        parent_id: Sequelize.INTEGER,
+        show_home: { type: Sequelize.TINYINT, defaultValue: 0 },   // <<< NEW
+  // home_order: { type: Sequelize.INTEGER, allowNull: true }, // (nếu dùng)
 
 
 

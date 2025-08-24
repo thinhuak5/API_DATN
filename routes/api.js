@@ -36,10 +36,15 @@ router.get("/products/eligible-for-review/:productId", authenticateToken, Client
 router.get("/variation/:variationId/eligible-for-review", authenticateToken, ClientReviewController.getEligibleOrderItemsForReview);
 
 // Categories PUBLIC
-router.get("/public/categories", CategoryController.getAll);
-router.get("/public/categories/by-parent/:parent_id", CategoryController.getByParent);
-router.get("/public/categories/parents", CategoryController.getAllParents);
-router.get("/public/categories/:id", CategoryController.detail);
+// routes/api.js (chỉ phần Categories PUBLIC & Home)
+router.get("/public/categories", CategoryController.getAllPublic);
+router.get("/public/categories/by-parent/:parent_id", CategoryController.getByParentPublic);
+router.get("/public/categories/parents", CategoryController.getAllParentsPublic);
+router.get("/public/categories/:id", CategoryController.detailPublic);
+
+// NEW: các section hiển thị ở Trang chủ
+router.get("/public/home/sections", CategoryController.getHomeSections);
+
 
 // Auth
 router.post("/register", upload.single("avatar"), UserController.register);
