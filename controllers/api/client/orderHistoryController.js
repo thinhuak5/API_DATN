@@ -87,6 +87,7 @@ exports.getOrderHistory = async (req, res, next) => {
 };
 
 // =============== PUT /api/orders/:id/cancel ==============
+// =============== PUT /api/orders/:id/cancel ==============
 exports.cancelOrder = async (req, res, next) => {
   if (!req.user || !req.user.id) {
     return res.status(401).json({ message: "Yêu cầu không được xác thực." });
@@ -99,9 +100,7 @@ exports.cancelOrder = async (req, res, next) => {
   try {
     if (!reason || reason.trim() === "") {
       await t.rollback();
-      return res
-        .status(400)
-        .json({ message: "Lý do hủy đơn hàng là bắt buộc." });
+      return res.status(400).json({ message: "Lý do hủy đơn hàng là bắt buộc." });
     }
 
     // Lấy đơn + items để hoàn kho
@@ -115,25 +114,30 @@ exports.cancelOrder = async (req, res, next) => {
         },
       ],
       transaction: t,
-      lock: t.LOCK.UPDATE, 
+      lock: t.LOCK.UPDATE, // SELECT ... FOR UPDATE (tùy DB)
     });
 
     if (!order) {
       await t.rollback();
-      return res.status(404).json({
-        message: "Không tìm thấy đơn hàng hoặc bạn không có quyền hủy đơn này.",
-      });
-    }
-
-    // Chỉ cho hủy khi đang "Chờ xác nhận"
-    if (Number(order.status) !== 1) {
-      await t.rollback();
       return res
-        .status(400)
-        .json({ message: "Không thể hủy đơn hàng ở trạng thái này." });
+        .status(404)
+        .json({ message: "Không tìm thấy đơn hàng hoặc bạn không có quyền hủy đơn này." });
     }
 
-    // Hoàn kho theo từng item (TC #14)
+    // Không cho hủy nếu đã hủy
+    if (Number(order.status) === 0) {
+      await t.rollback();
+      return res.status(400).json({ message: "Đơn hàng đã bị hủy trước đó." });
+    }
+
+    // ✅ CHO PHÉP hủy khi trạng thái là 1 (Chờ xác nhận) hoặc 2 (Đã xác nhận)
+    //    Dùng includes để tránh lỗi toán tử dấu phẩy
+    if (![1, 2].includes(Number(order.status))) {
+      await t.rollback();
+      return res.status(400).json({ message: "Không thể hủy đơn hàng ở trạng thái này." });
+    }
+
+    // Hoàn kho theo từng item
     for (const it of order.items || []) {
       if (it.variation_id) {
         await ProductVariation.increment("quantity", {
@@ -145,18 +149,16 @@ exports.cancelOrder = async (req, res, next) => {
     }
 
     // Cập nhật trạng thái đơn
-    order.status = 0; // đã hủy
+    order.status = 0; // Đã hủy
     order.cancellation_reason = reason.trim();
     order.cancelledAt = new Date();
     await order.save({ transaction: t });
 
     await t.commit();
 
-    console.log(
-      `Đơn hàng #${orderId} đã được hủy. Hoàn kho xong. Lý do: ${reason.trim()}`
-    );
+    console.log(`Đơn hàng #${orderId} đã được hủy. Hoàn kho xong. Lý do: ${reason.trim()}`);
 
-    res.json({
+    return res.json({
       message: `Đơn hàng #${orderId} đã được hủy thành công.`,
       orderId,
       newStatus: 0,
@@ -165,9 +167,9 @@ exports.cancelOrder = async (req, res, next) => {
   } catch (error) {
     await t.rollback();
     console.error(`Lỗi khi hủy đơn hàng #${orderId}:`, error);
-    res.status(500).json({
-      message: "Đã xảy ra lỗi khi hủy đơn hàng.",
-      error: error.message,
-    });
+    return res
+      .status(500)
+      .json({ message: "Đã xảy ra lỗi khi hủy đơn hàng.", error: error.message });
   }
 };
+
