@@ -317,34 +317,129 @@ const specsPayload = v.specs.map((s) => ({
   }
 };
 
+// YÊU CẦU: ở đầu file có import cloudinary nếu chưa có
+// const cloudinary = require("cloudinary").v2;
+
 exports.delete = async (req, res) => {
   const t = await sequelize.transaction();
   try {
     const productId = req.params.id;
 
+    // 1) Validate input
+    if (!productId) {
+      await t.rollback();
+      return res.status(400).json({
+        success: false,
+        code: "INVALID_ID",
+        message: "Thiếu mã sản phẩm để xóa.",
+      });
+    }
+
+    // 2) Tồn tại sản phẩm?
+    const product = await Product.findByPk(productId, { transaction: t });
+    if (!product) {
+      await t.rollback();
+      return res.status(404).json({
+        success: false,
+        code: "PRODUCT_NOT_FOUND",
+        message: "Không tìm thấy sản phẩm.",
+      });
+    }
+
+    // 3) Lấy biến thể + đơn hàng liên quan
     const vars = await ProductVariation.findAll({
       where: { product_id: productId },
       include: [{ model: OrderItem, as: "orderItems", attributes: ["id"] }],
       transaction: t,
     });
-    if (vars.some((v) => v.orderItems.length)) {
-      throw new Error("Có biến thể đang nằm trong đơn hàng, không thể xóa.");
+
+    // 4) Tổng tồn kho
+    const totalQty = vars.reduce((sum, v) => sum + (Number(v.quantity) || 0), 0);
+    if (totalQty > 0) {
+      await t.rollback();
+      return res.status(409).json({
+        success: false,
+        code: "PRODUCT_STOCK_REMAINING",
+        message: `Không thể xóa. Sản phẩm còn ${totalQty} tồn kho.`,
+        remaining_quantity: totalQty,
+        variant_quantities: vars.map((v) => ({
+          variation_id: v.id,
+          quantity: Number(v.quantity) || 0,
+        })),
+      });
     }
 
+    // 5) Đã phát sinh đơn hàng?
+    const hasOrders = vars.some((v) => v.orderItems && v.orderItems.length > 0);
+    if (hasOrders) {
+      await t.rollback();
+      return res.status(409).json({
+        success: false,
+        code: "PRODUCT_LINKED_TO_ORDERS",
+        message:
+          "Không thể xóa vì sản phẩm đã phát sinh đơn hàng. Vui lòng ngừng hiển thị sản phẩm.",
+      });
+    }
+
+    // 6) Dọn ảnh Cloudinary (nếu có)
     const varIds = vars.map((v) => v.id);
     if (varIds.length) {
+      const imgs = await ProductImage.findAll({
+        where: { variations_id: varIds },
+        transaction: t,
+      });
+
+      for (const img of imgs) {
+        const url = img.image_url;
+        if (url) {
+          const publicId = url.split("/").pop().split(".")[0];
+          try {
+            await cloudinary.uploader.destroy(publicId);
+          } catch (_) {
+            // Không chặn xóa vì lỗi dọn ảnh; chỉ log
+            console.warn("Cloudinary destroy failed for:", publicId);
+          }
+        }
+      }
+
+      // 7) Xóa bảng phụ theo đúng thứ tự tránh lỗi FK
       await ProductImage.destroy({ where: { variations_id: varIds }, transaction: t });
       await ProductVariationSpec.destroy({ where: { variation_id: varIds }, transaction: t });
       await ProductVariation.destroy({ where: { id: varIds }, transaction: t });
     }
+
+    // 8) Xóa sản phẩm
     const deleted = await Product.destroy({ where: { id: productId }, transaction: t });
-    if (!deleted) throw new Error("Không tìm thấy sản phẩm.");
+    if (!deleted) {
+      await t.rollback();
+      return res.status(500).json({
+        success: false,
+        code: "DELETE_FAILED",
+        message: "Xóa sản phẩm thất bại. Vui lòng thử lại.",
+      });
+    }
 
     await t.commit();
-    return res.json({ message: "Xóa sản phẩm thành công!" });
+    return res.json({ success: true, message: "Xóa sản phẩm thành công!" });
   } catch (err) {
     await t.rollback();
+
+    // Chuẩn hóa lỗi trả về
+    const isFK =
+      err?.name === "SequelizeForeignKeyConstraintError" ||
+      /foreign key/i.test(err?.message || "");
+
+    const payload = {
+      success: false,
+      code: isFK ? "FK_CONSTRAINT" : "UNKNOWN_ERROR",
+      message: isFK
+        ? "Không thể xóa do ràng buộc dữ liệu. Vui lòng kiểm tra đơn hàng/dữ liệu liên quan."
+        : "Đã xảy ra lỗi khi xóa sản phẩm. Vui lòng thử lại.",
+      error_detail: process.env.NODE_ENV === "production" ? undefined : err?.message,
+    };
+
     console.error("Lỗi xóa sản phẩm:", err);
-    return res.status(400).json({ error: err.message });
+    return res.status(isFK ? 409 : 400).json(payload);
   }
 };
+

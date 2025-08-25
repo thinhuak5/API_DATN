@@ -23,7 +23,7 @@ exports.getOrderHistory = async (req, res, next) => {
             {
               model: ProductVariation,
               as: "variation",
-              attributes: ["id", "name", "price"],
+              attributes: ["id", "name", "price","product_id"],
               include: [
                 {
                   model: ProductImage,

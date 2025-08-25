@@ -1,10 +1,10 @@
-
 const Cart = require("../../../models/carts");
 const Product = require("../../../models/product");
 const ProductImage = require("../../../models/productImage");
 const ProductVariation = require("../../../models/productVariation");
 const database = require("../../../models/database");
 
+/* ========================= ADD TO CART ========================= */
 exports.addToCart = async (req, res) => {
   const t = await database.transaction();
   try {
@@ -17,7 +17,7 @@ exports.addToCart = async (req, res) => {
       return res.status(400).json({ message: "Thiếu thông tin sản phẩm hoặc số lượng không hợp lệ." });
     }
 
-    // Lấy sản phẩm chính
+    // Sản phẩm chính
     const product = await Product.findByPk(product_id, { transaction: t });
     if (!product) {
       await t.rollback();
@@ -25,6 +25,8 @@ exports.addToCart = async (req, res) => {
     }
 
     let actualVariationIdToUse = null;
+    let available = null;
+
     if (variation_id) {
       const parsedVariationId = parseInt(variation_id, 10);
       if (isNaN(parsedVariationId)) {
@@ -32,36 +34,59 @@ exports.addToCart = async (req, res) => {
         return res.status(400).json({ message: "ID biến thể không hợp lệ." });
       }
 
-      // **Chỉnh lại include với as: 'product'**
+      // Lấy biến thể kèm product để chắc chắn đúng sản phẩm; đồng thời lấy quantity để check tồn
       const variation = await ProductVariation.findOne({
         where: { id: parsedVariationId, product_id },
-        include: [{ model: Product, as: 'product' }],
+        include: [{ model: Product, as: "product" }],
+        attributes: ["id", "product_id", "quantity"],
         transaction: t,
+        lock: t.LOCK.UPDATE, // tránh race add đồng thời
       });
 
       if (!variation) {
         await t.rollback();
         return res.status(400).json({ message: "Biến thể không tồn tại cho sản phẩm này." });
       }
+
       actualVariationIdToUse = parsedVariationId;
+      available = Math.max(0, Number(variation.quantity) || 0);
     }
 
-    // Check giỏ hàng
+    // Tìm item đã có trong giỏ
     const existingItem = await Cart.findOne({
       where: { user_id: userId, variation_id: actualVariationIdToUse, status: 0 },
       transaction: t,
+      lock: t.LOCK.UPDATE,
     });
 
+    // Nếu có biến thể, kiểm tra vượt tồn
+    if (actualVariationIdToUse !== null) {
+      const currentQty = existingItem ? Number(existingItem.quantity) || 0 : 0;
+      const desired = currentQty + quantity;
+      if (desired > available) {
+        await t.rollback();
+        return res.status(409).json({
+          code: "insufficient_stock",
+          message: `Chỉ còn ${available} sản phẩm trong kho.`,
+          available,
+        });
+      }
+    }
+
+    // Lưu DB
     if (existingItem) {
-      existingItem.quantity += quantity;
+      existingItem.quantity = (Number(existingItem.quantity) || 0) + quantity;
       await existingItem.save({ transaction: t });
     } else {
-      await Cart.create({
-        user_id:     userId,
-        variation_id: actualVariationIdToUse,
-        quantity,
-        status:       0,
-      }, { transaction: t });
+      await Cart.create(
+        {
+          user_id: userId,
+          variation_id: actualVariationIdToUse,
+          quantity,
+          status: 0,
+        },
+        { transaction: t }
+      );
     }
 
     await t.commit();
@@ -73,6 +98,7 @@ exports.addToCart = async (req, res) => {
   }
 };
 
+/* ========================= GET CART ========================= */
 exports.getCart = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -83,29 +109,31 @@ exports.getCart = async (req, res) => {
         {
           model: ProductVariation,
           as: "variation",
-          attributes: ["id", "name", "price"],
+          attributes: ["id", "name", "price", "quantity", "product_id"], // 👈 trả về quantity
           include: [
             {
               model: ProductImage,
               as: "productImages",
-              attributes: ["image_url"]
-            }
+              attributes: ["image_url"],
+              limit: 1,
+            },
           ],
         },
       ],
+      order: [["createdAt", "DESC"]],
     });
 
-    // Format lại JSON để client dễ dùng
-    const result = items.map(ci => {
+    // Format cho FE
+    const result = items.map((ci) => {
       const json = ci.toJSON();
       const { variation } = json;
 
       if (variation) {
-        // Gán ảnh đầu tiên từ variation.productImages lên variation.image_url
         if (variation.productImages && variation.productImages.length) {
           variation.image_url = variation.productImages[0].image_url;
+        } else {
+          variation.image_url = null;
         }
-        // Xóa mảng không cần thiết
         delete variation.productImages;
       }
 
@@ -117,12 +145,12 @@ exports.getCart = async (req, res) => {
     console.error("Lỗi khi lấy giỏ hàng:", err);
     return res.status(500).json({
       message: "Lỗi server khi lấy giỏ hàng.",
-      error: err.message
+      error: err.message,
     });
   }
 };
 
-
+/* ========================= UPDATE CART ========================= */
 exports.updateCart = async (req, res) => {
   const t = await database.transaction();
   try {
@@ -130,20 +158,24 @@ exports.updateCart = async (req, res) => {
     const cartItemId = req.params.cart_item_id;
     const { quantity } = req.body;
 
-    // Kiểm tra số lượng hợp lệ
+    // Validate
     if (!Number.isInteger(quantity) || quantity <= 0) {
       await t.rollback();
       return res.status(400).json({ message: "Số lượng phải là số nguyên dương." });
     }
 
-    // Tìm mục giỏ hàng
+    // Tìm cart item + variation để check tồn
     const cartItem = await Cart.findOne({
-      where: {
-        id: cartItemId,
-        user_id: userId,
-        status: 0,
-      },
+      where: { id: cartItemId, user_id: userId, status: 0 },
+      include: [
+        {
+          model: ProductVariation,
+          as: "variation",
+          attributes: ["id", "quantity"],
+        },
+      ],
       transaction: t,
+      lock: t.LOCK.UPDATE,
     });
 
     if (!cartItem) {
@@ -151,10 +183,19 @@ exports.updateCart = async (req, res) => {
       return res.status(404).json({ message: "Không tìm thấy sản phẩm trong giỏ hàng." });
     }
 
-    // Cập nhật số lượng
+    const available = Math.max(0, Number(cartItem.variation?.quantity) || 0);
+    if (quantity > available) {
+      await t.rollback();
+      return res.status(409).json({
+        code: "insufficient_stock",
+        message: `Chỉ còn ${available} sản phẩm trong kho.`,
+        available,
+      });
+    }
+
+    // Cập nhật
     cartItem.quantity = quantity;
     await cartItem.save({ transaction: t });
-    console.log("Updated cart item in DB:", cartItem.toJSON());
 
     await t.commit();
     return res.status(200).json({ message: "Cập nhật số lượng sản phẩm thành công", cartItem });
@@ -165,6 +206,7 @@ exports.updateCart = async (req, res) => {
   }
 };
 
+/* ========================= REMOVE ONE ========================= */
 exports.removeFromCart = async (req, res) => {
   const t = await database.transaction();
   try {
@@ -172,11 +214,7 @@ exports.removeFromCart = async (req, res) => {
     const cartItemId = req.params.cart_item_id;
 
     const cartItem = await Cart.findOne({
-      where: {
-        id: cartItemId,
-        user_id: userId,
-        status: 0,
-      },
+      where: { id: cartItemId, user_id: userId, status: 0 },
       transaction: t,
     });
 
@@ -186,8 +224,6 @@ exports.removeFromCart = async (req, res) => {
     }
 
     await cartItem.destroy({ transaction: t });
-    console.log("Cart item removed from DB:", cartItemId);
-
     await t.commit();
     return res.status(200).json({ message: "Xóa sản phẩm khỏi giỏ thành công." });
   } catch (error) {
@@ -197,6 +233,7 @@ exports.removeFromCart = async (req, res) => {
   }
 };
 
+/* ========================= CLEAR SELECTED ========================= */
 exports.clearCart = async (req, res) => {
   const t = await database.transaction();
   try {
@@ -208,13 +245,8 @@ exports.clearCart = async (req, res) => {
       return res.status(200).json({ message: "Không có sản phẩm nào được chọn để xóa khỏi giỏ hàng." });
     }
 
-    // Kiểm tra các cartItemId có thuộc về user không
     const validCartItems = await Cart.findAll({
-      where: {
-        user_id: userId,
-        id: selectedCartItemIds,
-        status: 0,
-      },
+      where: { user_id: userId, id: selectedCartItemIds, status: 0 },
       transaction: t,
     });
 
@@ -223,16 +255,10 @@ exports.clearCart = async (req, res) => {
       return res.status(400).json({ message: "Một số mục giỏ hàng không hợp lệ hoặc không thuộc về bạn." });
     }
 
-    // Xóa các mục giỏ hàng
     await Cart.destroy({
-      where: {
-        user_id: userId,
-        id: selectedCartItemIds,
-        status: 0,
-      },
+      where: { user_id: userId, id: selectedCartItemIds, status: 0 },
       transaction: t,
     });
-    console.log("Selected cart items cleared from DB for user", userId, ":", selectedCartItemIds);
 
     await t.commit();
     return res.status(200).json({ message: "Đã xóa các sản phẩm được chọn khỏi giỏ hàng sau khi đặt hàng thành công." });
@@ -243,6 +269,7 @@ exports.clearCart = async (req, res) => {
   }
 };
 
+/* ========================= DELETE PAID ITEMS ========================= */
 exports.deletePaidCartItems = async (req, res) => {
   const t = await database.transaction();
   try {
@@ -254,13 +281,8 @@ exports.deletePaidCartItems = async (req, res) => {
       return res.status(400).json({ message: "Danh sách sản phẩm không hợp lệ." });
     }
 
-    // Kiểm tra các cartItemId có thuộc về user không
     const validCartItems = await Cart.findAll({
-      where: {
-        user_id: userId,
-        id: cartItemIds,
-        status: 0,
-      },
+      where: { user_id: userId, id: cartItemIds, status: 0 },
       transaction: t,
     });
 
@@ -269,16 +291,10 @@ exports.deletePaidCartItems = async (req, res) => {
       return res.status(400).json({ message: "Một số mục giỏ hàng không hợp lệ hoặc không thuộc về bạn." });
     }
 
-    // Xóa các mục giỏ hàng
     const deleted = await Cart.destroy({
-      where: {
-        id: cartItemIds,
-        user_id: userId,
-        status: 0,
-      },
+      where: { id: cartItemIds, user_id: userId, status: 0 },
       transaction: t,
     });
-    console.log("Deleted paid cart items from DB:", cartItemIds);
 
     await t.commit();
     return res.status(200).json({

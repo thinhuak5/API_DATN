@@ -138,25 +138,36 @@ exports.create = async (req, res) => {
   }
 };
 
+/**
+ * CẬP NHẬT ĐƠN (KHÔNG CHO HỦY Ở ĐÂY)
+ * - Nếu muốn hủy: gọi PUT /api/admin/orders/:id/cancel kèm {reason}
+ */
 exports.update = async (req, res) => {
   const t = await orderModel.sequelize.transaction();
   try {
     const orderId = req.params.id;
     const { payment_status, status } = req.body;
 
-    // 1) Lấy đơn hiện tại (lock để tránh race)
     const order = await orderModel.findByPk(orderId, { transaction: t, lock: t.LOCK.UPDATE });
     if (!order) {
       await t.rollback();
       return res.status(404).json({ error: "Đơn hàng không tìm thấy" });
     }
 
-    const prevStatus = order.status;
+    const prevStatus = Number(order.status);
     const nextStatus = typeof status === "number" ? status : prevStatus;
     const nextPaymentStatus =
-      typeof payment_status === "number" ? payment_status : order.payment_status;
+      typeof payment_status === "number" ? payment_status : Number(order.payment_status);
 
-    // 2) Lần đầu vào trạng thái 4 -> trừ kho biến thể
+    // 🚫 Không cho hủy qua API này
+    if (nextStatus === 0 && [1, 2].includes(prevStatus)) {
+      await t.rollback();
+      return res
+        .status(400)
+        .json({ message: "Vui lòng dùng API /api/admin/orders/:id/cancel và gửi 'reason'." });
+    }
+
+    // 1) Lần đầu vào trạng thái 4 -> trừ kho & cộng sold
     const needDeduct = nextStatus === 4 && order.stock_deducted !== 1;
 
     if (needDeduct) {
@@ -178,7 +189,6 @@ exports.update = async (req, res) => {
 
       const affectedProductIds = [...new Set(variationMeta.map(v => v.product_id))];
 
-      // Trừ tồn & cộng sold cho từng biến thể
       for (const it of orderItems) {
         const variationId = it.variation_id;
         const qty = Number(it.quantity) || 0;
@@ -193,7 +203,6 @@ exports.update = async (req, res) => {
         );
       }
 
-      // 3) Nếu tổng tồn của tất cả biến thể của 1 sản phẩm = 0 -> Ẩn sản phẩm
       for (const pid of affectedProductIds) {
         const remain = (await productVariationModel.sum("quantity", {
           where: { product_id: pid },
@@ -202,13 +211,12 @@ exports.update = async (req, res) => {
 
         if (remain <= 0) {
           await productModel.update(
-            { status: 0 }, // 0 = Ẩn
+            { status: 0 }, // Ẩn sản phẩm khi hết hàng
             { where: { id: pid }, transaction: t }
           );
         }
       }
 
-      // 4) Cập nhật trạng thái + đánh dấu đã trừ kho
       await orderModel.update(
         {
           status: nextStatus,
@@ -218,7 +226,6 @@ exports.update = async (req, res) => {
         { where: { id: orderId }, transaction: t }
       );
     } else {
-      // Không cần trừ kho
       await orderModel.update(
         {
           status: nextStatus,
@@ -239,6 +246,102 @@ exports.update = async (req, res) => {
     console.error(error);
     await t.rollback();
     return res.status(500).json({ error: "Lỗi khi cập nhật đơn hàng" });
+  }
+};
+
+/**
+ * HỦY ĐƠN HÀNG (ADMIN) — BẮT BUỘC LÝ DO
+ * PUT /api/admin/orders/:id/cancel  body: { reason: string }
+ * - Chỉ cho hủy trạng thái 1 (Chờ xác nhận) hoặc 2 (Đã xác nhận)
+ * - Hoàn kho biến thể
+ * - Lưu cancellation_reason
+ */
+exports.cancelByAdmin = async (req, res) => {
+  const t = await orderModel.sequelize.transaction();
+  try {
+    const orderId = req.params.id;
+    const reason = (req.body?.reason || "").trim();
+
+    if (!reason) {
+      await t.rollback();
+      return res.status(400).json({ message: "Lý do hủy là bắt buộc." });
+    }
+
+    const order = await orderModel.findByPk(orderId, { transaction: t, lock: t.LOCK.UPDATE });
+    if (!order) {
+      await t.rollback();
+      return res.status(404).json({ message: "Không tìm thấy đơn hàng." });
+    }
+
+    const statusNow = Number(order.status);
+    if (![1, 2].includes(statusNow)) {
+      await t.rollback();
+      return res
+        .status(400)
+        .json({ message: "Chỉ được hủy đơn đang Chờ xác nhận hoặc Đã xác nhận." });
+    }
+
+    // Hoàn kho
+    const orderItems = await orderItemModel.findAll({
+      where: { order_id: orderId },
+      attributes: ["id", "variation_id", "quantity"],
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+
+    const variationIds = orderItems.map(i => i.variation_id).filter(Boolean);
+
+    for (const it of orderItems) {
+      const variationId = it.variation_id;
+      const qty = Number(it.quantity) || 0;
+      if (!variationId || qty <= 0) continue;
+
+      await productVariationModel.increment(
+        { quantity: qty },
+        { where: { id: variationId }, transaction: t }
+      );
+    }
+
+    // Nếu sau khi hoàn kho, sản phẩm có hàng -> bật lại hiển thị
+    if (variationIds.length) {
+      const variationMeta = await productVariationModel.findAll({
+        where: { id: variationIds },
+        attributes: ["id", "product_id"],
+        transaction: t,
+      });
+      const affectedProductIds = [...new Set(variationMeta.map(v => v.product_id))];
+
+      for (const pid of affectedProductIds) {
+        const remain = (await productVariationModel.sum("quantity", {
+          where: { product_id: pid },
+          transaction: t,
+        })) || 0;
+
+        if (remain > 0) {
+          await productModel.update(
+            { status: 1 }, // 1 = hiển thị
+            { where: { id: pid }, transaction: t }
+          );
+        }
+      }
+    }
+
+    // Cập nhật trạng thái + lý do
+    await orderModel.update(
+      {
+        status: 0,
+        cancellation_reason: reason,
+        // giữ nguyên payment_status hiện tại
+      },
+      { where: { id: orderId }, transaction: t }
+    );
+
+    await t.commit();
+    return res.json({ message: "Hủy đơn hàng thành công.", order_id: orderId, reason });
+  } catch (error) {
+    console.error("cancelByAdmin error:", error);
+    await t.rollback();
+    return res.status(500).json({ message: "Lỗi khi hủy đơn hàng." });
   }
 };
 

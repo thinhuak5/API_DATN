@@ -142,7 +142,7 @@ router.get("/admin/orders/:id", OrderController.detail);
 router.put("/admin/orders/:id", OrderController.update);
 router.post("/admin/orders", OrderController.create);
 router.delete("/admin/orders/:id", OrderController.delete);
-
+router.put("/admin/orders/:id/cancel", OrderController.cancelByAdmin)
 // Contact (admin)
 router.get("/admin/contact", ContactController.getAll);
 router.get("/admin/contact/:id", ContactController.getOne);
