@@ -67,7 +67,7 @@ class UserController {
       if (!isMatch) return res.status(400).json({ message: "Email hoặc mật khẩu không chính xác!" });
 
       const token = jwt.sign(
-        { id: user.id, name: user.name, email: user.email, role: user.role, avatar: user.avatar },
+        { id: user.id, name: user.name, email: user.email, role: user.role, status: user.status, avatar: user.avatar },
         process.env.JWT_SECRET || "thinh",
         { expiresIn: "1h" }
       );
@@ -121,7 +121,7 @@ class UserController {
       }
 
       const token = jwt.sign(
-        { id: user.id, name: user.name, email: user.email, role: user.role, avatar: user.avatar },
+        { id: user.id, name: user.name, email: user.email, role: user.role, status: user.status, avatar: user.avatar },
         process.env.JWT_SECRET || "thinh",
         { expiresIn: "1h" }
       );
@@ -162,7 +162,7 @@ class UserController {
   /**
    * Update:
    * - Đường admin (/api/admin/users/:id): chỉ Admin (role 0) được sửa, KHÔNG được sửa chính mình;
-   *   cho phép đổi status (0/1), role (chỉ 1 hoặc 2), name/phone/avatar.
+   *   nếu có từ 2 Admin trở lên thì KHÔNG được sửa tài khoản Admin khác; cho phép đổi status (0/1), role (chỉ 1 hoặc 2), name/phone/avatar.
    * - Đường client (/api/users/:id): chỉ cho chủ tài khoản tự sửa name/phone/avatar; bỏ qua role/status nếu gửi lên.
    */
   static async update(req, res) {
@@ -181,6 +181,20 @@ class UserController {
           return res.status(403).json({ message: "Admin không được phép sửa chính mình trong khu vực quản trị." });
         }
 
+        // Lấy thông tin mục tiêu để kiểm tra role
+        const target = await User.findByPk(targetId);
+        if (!target) {
+          return res.status(404).json({ error: "Người dùng không tìm thấy" });
+        }
+
+        // Nếu có >= 2 admin thì cấm sửa tài khoản admin khác
+        if (Number(target.role) === 0) {
+          const adminCount = await User.count({ where: { role: 0 } });
+          if (adminCount >= 2) {
+            return res.status(403).json({ message: "Hiện có từ 2 tài khoản Admin. Không thể sửa tài khoản Admin khác." });
+          }
+        }
+
         // Lọc field cho phép
         const payload = {};
         if (typeof req.body.name !== "undefined") payload.name = req.body.name;
@@ -192,7 +206,7 @@ class UserController {
 
         if (typeof req.body.role !== "undefined") {
           const nr = Number(req.body.role);
-          // Chỉ được set sang 1 (Nhân viên) hoặc 2 (Khách hàng)
+          // Chỉ được set sang 1 (Nhân viên) hoặc 2 (Khách hàng) — không cho set về 0 qua API admin
           if (![1, 2].includes(nr)) {
             return res.status(400).json({ message: "Role không hợp lệ. Chỉ được 1 (Nhân viên) hoặc 2 (Khách hàng)." });
           }
@@ -233,6 +247,7 @@ class UserController {
    * Delete (khu vực admin):
    * - Chỉ Admin (role 0) được xóa
    * - Không được xóa chính mình
+   * - Không được xóa tài khoản Admin khác
    */
   static async delete(req, res) {
     try {
@@ -245,6 +260,15 @@ class UserController {
         }
         if (String(req.user.id) === targetId) {
           return res.status(400).json({ message: "Không thể xóa chính mình." });
+        }
+
+        // Chặn xóa tài khoản Admin khác
+        const target = await User.findByPk(targetId);
+        if (!target) {
+          return res.status(404).json({ message: "Người dùng không tìm thấy" });
+        }
+        if (Number(target.role) === 0) {
+          return res.status(403).json({ message: "Không thể xóa tài khoản Admin." });
         }
       }
 

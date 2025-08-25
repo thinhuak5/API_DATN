@@ -107,14 +107,115 @@ exports.update = async (req, res) => {
 };
 
 exports.delete = async (req, res) => {
+  const id = req.params.id;
+
   try {
-    await categoryModel.destroy({ where: { id: req.params.id } });
-    res.json({ message: 'Danh mục đã được xóa thành công!' });
+    // 1) Kiểm tra danh mục con (1 cấp). Nếu bạn có cây sâu nhiều cấp, có thể làm đệ quy.
+    const children = await categoryModel.findAll({
+      attributes: ['id'],
+      where: { parent_id: id },
+    });
+    const childIds = children.map(c => c.id);
+
+    // 2) Đếm sản phẩm thuộc danh mục con
+    const childProductsCount = childIds.length
+      ? await productModel.count({ where: { category_id: { [Op.in]: childIds } } })
+      : 0;
+
+    if (childProductsCount > 0) {
+      return res
+        .status(422)
+        .json({
+          code: 'SUBCATEGORY_HAS_PRODUCTS',
+          message: 'Không thể xóa: danh mục con vẫn còn sản phẩm.',
+        });
+    }
+
+    // 3) Đếm sản phẩm thuộc chính danh mục này
+    const selfProductsCount = await productModel.count({ where: { category_id: id } });
+    if (selfProductsCount > 0) {
+      return res
+        .status(422)
+        .json({
+          code: 'CATEGORY_HAS_PRODUCTS',
+          message: 'Không thể xóa: danh mục này vẫn còn sản phẩm.',
+        });
+    }
+
+    // 4) Nếu còn danh mục con (nhưng không có sp trong con) -> chặn xóa cha
+    if (childIds.length > 0) {
+      return res
+        .status(422)
+        .json({
+          code: 'CATEGORY_HAS_CHILDREN',
+          message: 'Không thể xóa: danh mục đang chứa danh mục con.',
+        });
+    }
+
+    // 5) Cho phép xóa
+    const deleted = await categoryModel.destroy({ where: { id } });
+    if (!deleted) {
+      return res.status(404).json({ error: 'Danh mục không tìm thấy' });
+    }
+
+    return res.json({ message: 'Danh mục đã được xóa thành công!' });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Lỗi server' });
+    // Bắt lỗi FK từ MySQL (phòng khi rơi qua được check trên)
+    const mysqlCode = error?.original?.code || error?.code;
+    if (mysqlCode === 'ER_ROW_IS_REFERENCED' || mysqlCode === 'ER_ROW_IS_REFERENCED_2') {
+      // Cố gắng phân loại (cha hay con có sp). Mặc định coi là products ở chính danh mục.
+      try {
+        const children = await categoryModel.findAll({
+          attributes: ['id'],
+          where: { parent_id: id },
+        });
+        const childIds = children.map(c => c.id);
+
+        const childProductsCount = childIds.length
+          ? await productModel.count({ where: { category_id: { [Op.in]: childIds } } })
+          : 0;
+        if (childProductsCount > 0) {
+          return res
+            .status(422)
+            .json({
+              code: 'SUBCATEGORY_HAS_PRODUCTS',
+              message: 'Không thể xóa: danh mục con vẫn còn sản phẩm.',
+            });
+        }
+
+        const selfProductsCount = await productModel.count({ where: { category_id: id } });
+        if (selfProductsCount > 0) {
+          return res
+            .status(422)
+            .json({
+              code: 'CATEGORY_HAS_PRODUCTS',
+              message: 'Không thể xóa: danh mục này vẫn còn sản phẩm.',
+            });
+        }
+
+        // Nếu không phân loại được thì báo chung là còn ràng buộc FK
+        return res
+          .status(422)
+          .json({
+            code: 'CATEGORY_NOT_EMPTY',
+            message: 'Không thể xóa: danh mục vẫn đang được tham chiếu.',
+          });
+      } catch (e2) {
+        // fallback cuối
+        return res
+          .status(422)
+          .json({
+            code: 'CATEGORY_NOT_EMPTY',
+            message: 'Không thể xóa: danh mục vẫn đang được tham chiếu.',
+          });
+      }
+    }
+
+    console.error('Category delete error:', error);
+    return res.status(500).json({ error: 'Lỗi server' });
   }
 };
+
 
 /**
  * ==========================
