@@ -27,6 +27,8 @@ class UserController {
       const avatarValue = (req.file && req.file.path) ? req.file.path : "default-avatar.jpg";
       const hashed = await bcrypt.hash(password, 10);
 
+      console.log("Password gửi từ client:", password);
+
       const newUser = await User.create({
         username,
         name,
@@ -46,6 +48,8 @@ class UserController {
           status: newUser.status, role: newUser.role,
         },
       });
+
+
     } catch (error) {
       console.error("Lỗi server: ", error);
       return res.status(500).json({ message: "Lỗi server", error: error.message });
@@ -64,6 +68,7 @@ class UserController {
       }
 
       const isMatch = await bcrypt.compare(password, user.password);
+      console.log("Kết quả so sánh:", isMatch);
       if (!isMatch) return res.status(400).json({ message: "Email hoặc mật khẩu không chính xác!" });
 
       const token = jwt.sign(
