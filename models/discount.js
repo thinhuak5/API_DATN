@@ -44,11 +44,11 @@ const Discount = database.define('discounts', {
     defaultValue: 0,
   },
   start_date: {
-    type: Sequelize.DATE,
+      type: Sequelize.DATEONLY,
     allowNull: true,
   },
   end_date: {
-    type: Sequelize.DATE,
+      type: Sequelize.DATEONLY,
     allowNull: true,
   },
   status: {
