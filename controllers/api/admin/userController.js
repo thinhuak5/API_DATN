@@ -16,15 +16,13 @@ const isStrongPassword = (password) => String(password || "").length >= 6;
 class UserController {
   // ========== AUTH ==========
   static async register(req, res) {
-    const { username, name, email, phone, password, status, role } = req.body;
-    if (!username || !name || !email || !phone || !password) {
+    const {username, name, email, password, status, role} = req.body;
+    if (!username || !name || !email || !password) {
       return res.status(400).json({ message: "Vui lòng điền đầy đủ thông tin!" });
     }
     try {
       const existingUser = await User.findOne({ where: { email } });
       if (existingUser) return res.status(400).json({ message: "Email đã tồn tại!" });
-
-      const avatarValue = (req.file && req.file.path) ? req.file.path : "default-avatar.jpg";
       const hashed = await bcrypt.hash(password, 10);
 
       console.log("Password gửi từ client:", password);
@@ -34,8 +32,6 @@ class UserController {
         name,
         email,
         password: hashed,
-        phone,
-        avatar: avatarValue,
         status: Number(status ?? 1),          // 1: hoạt động, 0: khóa
         role: Number(role ?? 2),              // 0: Admin, 1: Nhân viên, 2: Khách hàng
       });
@@ -44,7 +40,7 @@ class UserController {
         message: "Đăng ký thành công!",
         user: {
           id: newUser.id, username: newUser.username, name: newUser.name,
-          email: newUser.email, phone: newUser.phone, avatar: newUser.avatar,
+          email: newUser.email,
           status: newUser.status, role: newUser.role,
         },
       });
