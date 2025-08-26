@@ -29,7 +29,7 @@ exports.create = async (req, res) => {
     const discount = await Discount.create(data);
     res.status(201).json({ message: 'Tạo mã giảm giá thành công', discount });
   } catch (error) {
-    res.status(500).json({ error: 'Lỗi server khi tạo mã giảm giá', detail: error.message });
+    res.status(500).json({ error: 'Mã giảm giá đã tồn tại.', detail: error.message });
   }
 };
 
@@ -42,7 +42,7 @@ exports.update = async (req, res) => {
     const discount = await Discount.findByPk(id);
     res.json({ message: 'Cập nhật mã giảm giá thành công', discount });
   } catch (error) {
-    res.status(500).json({ error: 'Lỗi server khi cập nhật mã giảm giá' });
+    res.status(500).json({ error: 'Mã giảm giá đã tồn tại.' });
   }
 };
 
