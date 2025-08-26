@@ -5,7 +5,7 @@ const checkJWT = (req, res, next) => {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
         console.log('Authorization header không hợp lệ:', authHeader);
-        return res.status(401).json({message: 'Token không hợp lệ!'});
+        return res.status(401).json({message: 'Tài khoản không hợp lệ'});
     }
 
     const token = authHeader.split(' ')[1];
@@ -16,13 +16,13 @@ const checkJWT = (req, res, next) => {
         next();
     } catch (error) {
         console.error('Lỗi khi giải mã token:', error);
-        return res.status(401).json({message: 'Token không hợp lệ!'});
+        return res.status(401).json({message: 'Tài khoản không hợp lệ!'});
     }
 };
 
 const isAdmin = (req, res, next) => {
     if (req.user.role !== 1) {
-        return res.status(403).json({message: "Bạn không có quyền !"});
+        return res.status(403).json({message: "Bạn không có quyền truy cập !"});
     }
     next();
 };
